@@ -13,7 +13,15 @@ extern {
     fn alert(s: &str);
 }
 
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+// TODO(swj): Comment out for deployment, increases the binary size quite a lot.
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
+
 #[wasm_bindgen]
 pub fn greet() {
-    alert("Hello, voting-map!");
+    log!("Hello, voting-map!");
 }
