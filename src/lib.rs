@@ -1,6 +1,8 @@
 mod utils;
 
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::Clamped;
+use web_sys::{CanvasRenderingContext2d, ImageData};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -9,7 +11,7 @@ use wasm_bindgen::prelude::*;
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
-extern {
+extern "C" {
     fn alert(s: &str);
 }
 
@@ -22,6 +24,17 @@ macro_rules! log {
 }
 
 #[wasm_bindgen]
-pub fn greet() {
-    log!("Hello, voting-map!");
+pub fn render(width: u32, height: u32) -> Result<Vec<u8>, JsValue> {
+    let mut data = Vec::new();
+
+    for x in 0..width {
+        for y in 0..height {
+            data.push(0);
+            data.push(200);
+            data.push(100);
+            data.push(255);
+        }
+    }
+
+    Ok(data)
 }

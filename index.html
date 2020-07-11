@@ -7,12 +7,35 @@
 </head>
 
 <body>
+    <canvas id="vote-map" height="512" width="512"></canvas>
     <script type="module">
-        import init, { greet } from './pkg/voting_map.js';
+        import init, { render } from './pkg/voting_map.js';
 
         async function main() {
             await init();
-            greet();
+            reloadOnChange();
+
+            const canvas = document.getElementById('vote-map');
+            const ctx = canvas.getContext('2d');
+            try {
+                const data = render(canvas.clientWidth, canvas.clientHeight);
+                const image = new ImageData(Uint8ClampedArray.from(data),
+                    canvas.clientWidth, canvas.clientHeight);
+                ctx.putImageData(image, 0, 0);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function reloadOnChange(createdAt = null) {
+            const r = await fetch('./pkg/voting_map_bg.wasm', { method: 'HEAD' });
+            const lastModified = r.headers.get("Last-Modified");
+
+            if (createdAt != null && createdAt != lastModified) {
+                document.location.reload();
+            } else {
+                setTimeout(() => reloadOnChange(lastModified), 500);
+            }
         }
 
         main();
