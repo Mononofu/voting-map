@@ -1,12 +1,7 @@
 mod utils;
 
+use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
-
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
 extern "C" {
@@ -18,7 +13,7 @@ extern "C" {
 macro_rules! log {
     ( $( $t:tt )* ) => {
         web_sys::console::log_1(&format!( $( $t )* ).into());
-    }
+    };
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
@@ -208,12 +203,6 @@ impl QuadTree {
         }
     }
 
-    fn draw(&self, image: &mut Image) {
-        // Two-step drawing process to make sure outlines don't overwrite points for the values.
-        self.draw_outlines(image);
-        self.draw_values(image);
-    }
-
     fn draw_outlines(&self, image: &mut Image) {
         match &self.tree {
             TreeState::Inner(children) => children.iter().for_each(|c| c.draw_outlines(image)),
@@ -377,7 +366,75 @@ fn normal_pdf(mean: f32, sigma: f32, x: f32) -> f32 {
         * (-1f32 / 2f32 * ((x - mean) / sigma).powi(2)).exp()
 }
 
-fn select_candidate(p: Point, candidates: &[Point]) -> usize {
+struct ElectionCache {
+    candidates: Vec<Point>,
+    sample_locations: Vec<(f32, f32)>,
+    cached_results: Vec<u8>,
+    vote_granularity: i32,
+    values_per_dim: usize,
+}
+
+impl ElectionCache {
+    fn new(candidates: &[Point]) -> ElectionCache {
+        let vote_granularity = 100;
+
+        let sigma = 0.5f32;
+        let num_sigma = 3.0;
+        let num_samples = 10;
+        let bounds = (sigma * num_sigma * num_samples as f32) as i32;
+        let mut sample_locations = vec![];
+        for x in -bounds..=bounds {
+            let x = x as f32 / num_samples as f32;
+            let p = normal_pdf(0f32, sigma, x);
+            sample_locations.push((x, p));
+        }
+
+        let range = sigma * num_sigma;
+        let values_per_dim = (vote_granularity as f32 * (1.0 + range * 2.0)) as usize;
+        ElectionCache {
+            candidates: candidates.to_vec(),
+            sample_locations,
+            cached_results: vec![0; 2 * values_per_dim * values_per_dim],
+            vote_granularity,
+            values_per_dim,
+        }
+    }
+
+    fn election(&mut self, p: Point) -> usize {
+        let mut num_votes = vec![0f32; self.candidates.len()];
+        for (dx, px) in self.sample_locations.iter() {
+            for (dy, py) in self.sample_locations.iter() {
+                let at = Point::new(p.x + dx, p.y + dy);
+
+                let cache_idx = self.cache_index(at);
+
+                let mut result = self.cached_results[cache_idx];
+                if result == 0 {
+                    result = select_candidate(at, &self.candidates) + 1;
+                    self.cached_results[cache_idx] = result;
+                }
+
+                num_votes[(result - 1) as usize] += px * py;
+            }
+        }
+        // log!("total votes: {:?}", num_votes);
+
+        num_votes
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .map(|(i, _)| i)
+            .unwrap()
+    }
+
+    fn cache_index(&self, p: Point) -> usize {
+        let x = (p.x * self.vote_granularity as f32) as i32;
+        let y = (p.y * self.vote_granularity as f32) as i32;
+        (self.values_per_dim + x as usize) * self.values_per_dim + y as usize + self.values_per_dim
+    }
+}
+
+fn select_candidate(p: Point, candidates: &[Point]) -> u8 {
     let mut closest_i = 100000000;
     let mut closest_dist = std::f32::MAX;
     for (i, c) in candidates.iter().enumerate() {
@@ -387,29 +444,17 @@ fn select_candidate(p: Point, candidates: &[Point]) -> usize {
             closest_i = i;
         }
     }
-    closest_i
+    closest_i as u8
 }
 
-fn run_election(p: Point, candidates: &[Point], sample_locations: &[(f32, f32)]) -> usize {
-    // log!("election at {:?} for candidates: {:?}", p, candidates);
-
-    let mut num_votes = vec![0f32; candidates.len()];
-    for (dx, px) in sample_locations {
-        for (dy, py) in sample_locations {
-            let at = Point::new(p.x + dx, p.y + dy);
-            let winner = select_candidate(at, candidates);
-            num_votes[winner] += px * py;
-        }
-    }
-
-    // log!("total votes: {:?}", num_votes);
-
-    num_votes
-        .iter()
-        .enumerate()
-        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-        .map(|(i, _)| i)
-        .unwrap()
+// Returns time in seconds.
+fn now() -> f64 {
+    web_sys::window()
+        .expect("should have a Window")
+        .performance()
+        .expect("should have a Performance")
+        .now()
+        / 1e3
 }
 
 #[wasm_bindgen]
@@ -418,51 +463,42 @@ pub fn render(
     height: usize,
     candidate_coords: Vec<f32>,
     quality: i32,
+    debug_draw_outlines: bool,
+    debug_draw_points: bool,
 ) -> Result<Vec<u8>, JsValue> {
+    utils::set_panic_hook();
+
     let mut candidates = vec![];
     for i in (0..candidate_coords.len()).step_by(2) {
         candidates.push(Point::new(candidate_coords[i], candidate_coords[i + 1]));
     }
 
-    let sigma = 0.5f32;
-    let num_sigma = 3;
-    let num_samples = 50;
-
-    let bounds = (sigma * num_sigma as f32 * num_samples as f32) as i32;
-    let mut sample_points = vec![];
-    for x in -bounds..=bounds {
-        let x = x as f32 / num_samples as f32;
-        let p = normal_pdf(0f32, sigma, x);
-        sample_points.push((x, p));
-    }
+    let mut election_cache = ElectionCache::new(&candidates);
 
     let colors = vec![Color::RED, Color::GREEN, Color::BLUE];
 
-    log!("sample points: {:?}", sample_points);
-
+    // Initialize quad tree with the location of all candidates.
     let mut tree = QuadTree::default();
-    for p in candidates.iter() {
-        let winner = run_election(*p, &candidates, &sample_points);
-        log!("at {:?} elected: {:}", p, winner);
-        tree.insert(*p);
-    }
+    candidates.iter().for_each(|p| tree.insert(*p));
+    // log!("built tree: {}", tree);
 
-    log!("built tree: {}", tree);
+    // Repeatedly run elections for all areas of the tree that aren't settled yet.
     let mut map = ElectionMap::new(width, height);
-
     let num_steps = quality;
     for i in 0..num_steps {
+        let start = now();
         let mut num_elections = 0;
         // Run an election for each leaf of the tree.
         tree.visit_leaves(&mut |from: Point, to: Point| {
             if !map.has_result(from, to) {
                 let mid = from + (to - from) * 0.5;
-                let winner = run_election(mid, &candidates, &sample_points);
+                let winner = election_cache.election(mid);
                 // log!("at {:?} elected: {:}", mid, winner);
                 map.set_result(from, to, winner);
                 num_elections += 1;
             }
         });
+        let duration = now() - start;
 
         // Split all leaves whose neighbours don't all have the same election result.
         let mut to_split = vec![];
@@ -487,14 +523,23 @@ pub fn render(
             }
         }
         // Repeat until minimum leave size reached or no more splits are necessary.
-
-        log!("step {}: {} elections", i, num_elections);
+        log!(
+            "step {}: {:.1} elections/second - {} in {:.3}s",
+            i,
+            num_elections as f64 / duration,
+            num_elections,
+            duration
+        );
     }
 
     let mut image = Image::new(width, height);
     map.draw(&mut image, &colors);
-    // tree.draw_outlines(&mut image);
-    // tree.draw_values(&mut image);
+    if debug_draw_outlines {
+        tree.draw_outlines(&mut image);
+    }
+    if debug_draw_points {
+        tree.draw_values(&mut image);
+    }
 
     Ok(image.data)
 }

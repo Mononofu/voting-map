@@ -7,7 +7,7 @@
 </head>
 
 <body>
-    <canvas id="vote-map" height="128" width="128" style="padding: 0"></canvas>
+    <canvas id="vote-map" height="256" width="256" style="padding: 0"></canvas>
     <script type="module">
         import init, { render } from './pkg/voting_map.js';
 
@@ -18,7 +18,7 @@
             const canvas = document.getElementById('vote-map');
 
             const draw = (quality) => {
-                quality = quality || 6;
+                quality = quality || 7;
                 const ctx = canvas.getContext('2d');
                 try {
                     const candidateCoords = [];
@@ -27,7 +27,9 @@
                         candidateCoords.push(y);
                     }
 
-                    const data = render(canvas.clientWidth, canvas.clientHeight, candidateCoords, quality);
+                    const drawOutlines = false;
+                    const drawPoints = false;
+                    const data = render(canvas.clientWidth, canvas.clientHeight, candidateCoords, quality, drawOutlines, drawPoints);
                     const image = new ImageData(Uint8ClampedArray.from(data),
                         canvas.clientWidth, canvas.clientHeight);
                     ctx.putImageData(image, 0, 0);
@@ -53,7 +55,6 @@
             }
 
             const selectCandidate = ev => {
-                console.log('down', ev);
                 const [x, y] = relativeCoords(ev);
 
                 let minDist = 1;
@@ -63,7 +64,6 @@
                     if (dist < minDist && dist < 0.05) {
                         selected = cand;
                         minDist = dist;
-                        console.log(x, y, cand, dist);
                     }
                 }
             };
@@ -88,8 +88,7 @@
                 const [x, y] = relativeCoords(ev);
                 selected[0] = x;
                 selected[1] = y;
-                console.log(selected);
-                draw(3);
+                draw(4);
             }
 
             canvas.addEventListener('mousemove', moveCandidate);

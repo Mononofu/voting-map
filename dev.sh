@@ -11,4 +11,4 @@ python -m SimpleHTTPServer 8080 2> /dev/null &
 echo "Serving WebAssembly app on http://localhost:8080/"
 
 # Recompile on changes.
-watchexec --exts rs,html 'wasm-pack build -t web'
+watchexec --exts rs,html,toml 'wasm-pack build -t web'
