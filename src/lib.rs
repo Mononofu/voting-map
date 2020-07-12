@@ -285,7 +285,7 @@ impl std::fmt::Display for QuadTree {
 }
 
 struct ElectionMap {
-    votes: Vec<u8>,
+    result: Vec<u8>,
     width: usize,
     height: usize,
 }
@@ -293,13 +293,28 @@ struct ElectionMap {
 impl ElectionMap {
     fn new(width: usize, height: usize) -> ElectionMap {
         ElectionMap {
-            votes: vec![0; width * height],
+            result: vec![0; width * height],
             width,
             height,
         }
     }
 
     fn set_result(&mut self, from: Point, to: Point, winner: usize) {
+        self.set_rect(from, to, winner as u8 + 1);
+    }
+
+    fn has_result(&self, from: Point, to: Point) -> bool {
+        let mid = from + (to - from) * 0.5;
+        let from_x = (mid.x * (self.width - 1) as f32).round() as usize;
+        let from_y = (mid.y * (self.height - 1) as f32).round() as usize;
+        self.result[self.as_index(from_x, from_y)] > 0
+    }
+
+    fn clear(&mut self, from: Point, to: Point) {
+        self.set_rect(from, to, 0);
+    }
+
+    fn set_rect(&mut self, from: Point, to: Point, value: u8) {
         let from_x = (from.x * (self.width - 1) as f32).round() as usize;
         let from_y = (from.y * (self.height - 1) as f32).round() as usize;
         let to_x = (to.x * (self.width - 1) as f32).round() as usize;
@@ -307,7 +322,7 @@ impl ElectionMap {
         for x in from_x..=to_x {
             for y in from_y..=to_y {
                 let i = self.as_index(x, y);
-                self.votes[i] = winner as u8;
+                self.result[i] = value;
             }
         }
     }
@@ -319,21 +334,21 @@ impl ElectionMap {
         let to_x = (to.x * (self.width - 1) as f32).round() as usize;
         let to_y = (to.y * (self.height - 1) as f32).round() as usize;
 
-        let result = self.votes[self.as_index(from_x, from_y)];
+        let result = self.result[self.as_index(from_x, from_y)];
 
         for x in from_x..to_x {
-            if from_y > 0 && self.votes[self.as_index(x, from_y - 1)] != result {
+            if from_y > 0 && self.result[self.as_index(x, from_y - 1)] != result {
                 return false;
             }
-            if to_y + 1 < self.width && self.votes[self.as_index(x, to_y + 1)] != result {
+            if to_y + 1 < self.width && self.result[self.as_index(x, to_y + 1)] != result {
                 return false;
             }
         }
         for y in from_y..to_y {
-            if from_x > 0 && self.votes[self.as_index(from_x - 1, y)] != result {
+            if from_x > 0 && self.result[self.as_index(from_x - 1, y)] != result {
                 return false;
             }
-            if to_x + 1 < self.height && self.votes[self.as_index(to_x + 1, y)] != result {
+            if to_x + 1 < self.height && self.result[self.as_index(to_x + 1, y)] != result {
                 return false;
             }
         }
@@ -343,8 +358,13 @@ impl ElectionMap {
     fn draw(&self, image: &mut Image, colors: &[Color]) {
         for x in 0..self.width {
             for y in 0..self.height {
-                let result = self.votes[self.as_index(x, y)];
-                image.set_coords(x, y, colors[result as usize]);
+                let result = (self.result[self.as_index(x, y)] - 1) as usize;
+                let color = if result < colors.len() {
+                    colors[result]
+                } else {
+                    Color::BLACK
+                };
+                image.set_coords(x, y, color);
             }
         }
     }
@@ -427,13 +447,18 @@ pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
     log!("built tree: {}", tree);
     let mut map = ElectionMap::new(width, height);
 
-    for i in 0..5 {
+    let num_steps = 6;
+    for i in 0..num_steps {
+        let mut num_elections = 0;
         // Run an election for each leaf of the tree.
         tree.visit_leaves(&mut |from: Point, to: Point| {
-            let mid = from + (to - from) * 0.5;
-            let winner = run_election(mid, &candidates, &sample_points);
-            // log!("at {:?} elected: {:}", mid, winner);
-            map.set_result(from, to, winner);
+            if !map.has_result(from, to) {
+                let mid = from + (to - from) * 0.5;
+                let winner = run_election(mid, &candidates, &sample_points);
+                // log!("at {:?} elected: {:}", mid, winner);
+                map.set_result(from, to, winner);
+                num_elections += 1;
+            }
         });
 
         // Split all leaves whose neighbours don't all have the same election result.
@@ -445,15 +470,22 @@ pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
             }
         });
 
-        for (from, to) in to_split {
-            let dx = Vec2::new(to.x - from.x, 0.0);
-            let dy = Vec2::new(0.0, to.y - from.y);
-            tree.insert(from + dx * 0.25 + dy * 0.25);
-            tree.insert(from + dx * 0.25 + dy * 0.75);
-            tree.insert(from + dx * 0.75 + dy * 0.25);
-            tree.insert(from + dx * 0.75 + dy * 0.75);
+        let last_step = i + 1 == num_steps;
+
+        if !last_step {
+            for (from, to) in to_split {
+                map.clear(from, to);
+                let dx = Vec2::new(to.x - from.x, 0.0);
+                let dy = Vec2::new(0.0, to.y - from.y);
+                tree.insert(from + dx * 0.25 + dy * 0.25);
+                tree.insert(from + dx * 0.25 + dy * 0.75);
+                tree.insert(from + dx * 0.75 + dy * 0.25);
+                tree.insert(from + dx * 0.75 + dy * 0.75);
+            }
         }
         // Repeat until minimum leave size reached or no more splits are necessary.
+
+        log!("step {}: {} elections", i, num_elections);
     }
 
     let mut image = Image::new(width, height);
