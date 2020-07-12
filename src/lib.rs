@@ -88,17 +88,17 @@ impl std::fmt::Display for Point {
     }
 }
 
-struct Map {
+struct Image {
     data: Vec<u8>,
     height: usize,
     width: usize,
 }
 
-impl Map {
-    fn new(width: usize, height: usize) -> Map {
+impl Image {
+    fn new(width: usize, height: usize) -> Image {
         let mut data = Vec::new();
         data.resize(width * height * 4, 255);
-        Map {
+        Image {
             data,
             height,
             width,
@@ -185,24 +185,24 @@ impl QuadTree {
         self.insert(p);
     }
 
-    fn draw(&self, map: &mut Map) {
+    fn draw(&self, image: &mut Image) {
         // Two-step drawing process to make sure outlines don't overwrite points for the values.
-        self.draw_outlines(map);
-        self.draw_values(map);
+        self.draw_outlines(image);
+        self.draw_values(image);
     }
 
-    fn draw_outlines(&self, map: &mut Map) {
+    fn draw_outlines(&self, image: &mut Image) {
         match &self.tree {
-            TreeState::Inner(children) => children.iter().for_each(|c| c.draw_outlines(map)),
+            TreeState::Inner(children) => children.iter().for_each(|c| c.draw_outlines(image)),
             TreeState::Leaf(_) => {
-                map.line(self.from, Point::new(self.from.x, self.to.y), Color::BLACK);
-                map.line(
+                image.line(self.from, Point::new(self.from.x, self.to.y), Color::BLACK);
+                image.line(
                     Point::new(self.to.x, self.from.y),
                     Point::new(self.to.x, self.to.y),
                     Color::BLACK,
                 );
-                map.line(self.from, Point::new(self.to.x, self.from.y), Color::BLACK);
-                map.line(
+                image.line(self.from, Point::new(self.to.x, self.from.y), Color::BLACK);
+                image.line(
                     Point::new(self.from.x, self.to.y),
                     Point::new(self.to.x, self.to.y),
                     Color::BLACK,
@@ -211,12 +211,12 @@ impl QuadTree {
         }
     }
 
-    fn draw_values(&self, map: &mut Map) {
+    fn draw_values(&self, image: &mut Image) {
         match &self.tree {
-            TreeState::Inner(children) => children.iter().for_each(|c| c.draw_values(map)),
+            TreeState::Inner(children) => children.iter().for_each(|c| c.draw_values(image)),
             TreeState::Leaf(value) => {
                 if let Some(p) = value {
-                    map.set(*p, Color::YELLOW);
+                    image.set(*p, Color::YELLOW);
                 }
             }
         }
@@ -323,7 +323,7 @@ pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
 
     log!("sample points: {:?}", sample_points);
 
-    let mut map = Map::new(width, height);
+    let mut image = Image::new(width, height);
 
     let mut tree = QuadTree::default();
     for p in candidates.iter() {
@@ -334,6 +334,12 @@ pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
 
     log!("built tree: {}", tree);
 
+    // Run an election for each leaf of the tree.
+
+    // Split all leaves whose neighbours don't all have the same election result.
+
+    // Repeat until minimum leave size reached or no more splits are necessary.
+
     for x in 0..width {
         for y in 0..height {
             let p = Point::new(
@@ -341,11 +347,11 @@ pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
                 y as f32 / (height - 1) as f32,
             );
             let winner = run_election(p, &candidates, &sample_points);
-            map.set(p, colors[winner]);
+            image.set(p, colors[winner]);
         }
     }
 
-    tree.draw(&mut map);
+    tree.draw(&mut image);
 
-    Ok(map.data)
+    Ok(image.data)
 }
