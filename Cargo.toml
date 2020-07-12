@@ -8,7 +8,11 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook"]
+debug_logging = []
+default = [
+ # "console_error_panic_hook",
+ # "debug_logging"
+]
 
 [dependencies]
 wasm-bindgen = "0.2.63"
@@ -31,6 +35,7 @@ wasm-bindgen-test = "0.3.13"
 [profile.release]
 debug = true
 
-[package.metadata.wasm-pack.profile.release]
-# previously had just ['-O4']
-wasm-opt = ['-O4', '-g']
+[package.metadata.wasm-pack.profile.release] 
+wasm-opt = ['-O4']
+# Enable for profiling.
+# wasm-opt = ['-O4', '-g']

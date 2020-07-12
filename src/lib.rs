@@ -2,15 +2,10 @@ mod utils;
 
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
-}
-
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
-// TODO(swj): Comment out for deployment, increases the binary size quite a lot.
 macro_rules! log {
     ( $( $t:tt )* ) => {
+        #[cfg(feature = "debug_logging")]
         web_sys::console::log_1(&format!( $( $t )* ).into());
     };
 }
@@ -491,7 +486,6 @@ pub fn render(
     // Initialize quad tree with the location of all candidates.
     let mut tree = QuadTree::default();
     candidates.iter().for_each(|p| tree.insert(*p));
-    // log!("built tree: {}", tree);
 
     let mut image = Image::new(width, height);
 
@@ -506,7 +500,6 @@ pub fn render(
             if !map.has_result(from, to) {
                 let mid = from + (to - from) * 0.5;
                 let winner = election_cache.election(mid);
-                // log!("at {:?} elected: {:}", mid, winner);
                 map.set_result(from, to, winner);
                 num_elections += 1;
             }
@@ -531,7 +524,6 @@ pub fn render(
         let mut to_split = vec![];
         tree.visit_leaves(&mut |from: Point, to: Point| {
             if !map.same_result_as_neighbours(from, to) {
-                // log!("need to split {}-{}", from, to);
                 to_split.push((from, to));
             }
         });
