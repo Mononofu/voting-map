@@ -303,10 +303,9 @@ impl ElectionMap {
         self.set_rect(from, to, winner as u8 + 1);
     }
 
-    fn has_result(&self, from: Point, to: Point) -> bool {
-        let mid = from + (to - from) * 0.5;
-        let from_x = (mid.x * (self.width - 1) as f32).round() as usize;
-        let from_y = (mid.y * (self.height - 1) as f32).round() as usize;
+    fn has_result(&self, _from: Point, to: Point) -> bool {
+        let from_x = (to.x * (self.width - 1) as f32).round() as usize;
+        let from_y = (to.y * (self.height - 1) as f32).round() as usize;
         self.result[self.as_index(from_x, from_y)] > 0
     }
 
