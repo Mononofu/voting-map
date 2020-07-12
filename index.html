@@ -8,7 +8,7 @@
 </head>
 
 <body>
-    <canvas id="vote-map" height="256" width="256" style="padding: 0"></canvas>
+    <canvas id="vote-map" style="width: 100%; max-width: 512px;"></canvas>
     <script type="module">
         import init, { render } from './pkg/voting_map.js';
 
@@ -16,7 +16,12 @@
             await init();
             reloadOnChange();
 
+
+            const mapSize = 256;
             const canvas = document.getElementById('vote-map');
+            canvas.style.height = canvas.clientWidth + 'px';
+            canvas.height = mapSize;
+            canvas.width = mapSize;
 
             const draw = (maxRenderTime) => {
                 maxRenderTime = maxRenderTime || 0.5;
@@ -30,14 +35,13 @@
 
                     const drawOutlines = false;
                     const drawPoints = false;
-                    const data = render(canvas.clientWidth, canvas.clientHeight, candidateCoords,
+                    const data = render(mapSize, mapSize, candidateCoords,
                         maxRenderTime, drawOutlines, drawPoints);
-                    const image = new ImageData(Uint8ClampedArray.from(data),
-                        canvas.clientWidth, canvas.clientHeight);
+                    const image = new ImageData(Uint8ClampedArray.from(data), mapSize, mapSize);
                     ctx.putImageData(image, 0, 0);
                     for (const [x, y] of candidates) {
                         ctx.beginPath();
-                        ctx.arc(x * canvas.clientWidth, y * canvas.clientHeight, 5, 0, 2 * Math.PI);
+                        ctx.arc(x * mapSize, y * mapSize, 5, 0, 2 * Math.PI);
                         ctx.stroke();
                     }
                 } catch (e) {
