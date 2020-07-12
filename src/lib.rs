@@ -58,6 +58,13 @@ impl Vec2 {
     }
 }
 
+impl std::ops::Mul<f32> for Vec2 {
+    type Output = Vec2;
+    fn mul(self, rhs: f32) -> Vec2 {
+        Vec2::new(self.dx * rhs, self.dy * rhs)
+    }
+}
+
 impl Point {
     fn new(x: f32, y: f32) -> Point {
         Point { x, y }
@@ -108,6 +115,10 @@ impl Image {
     fn set(&mut self, p: Point, color: Color) {
         let x = (p.x * (self.width - 1) as f32).round() as usize;
         let y = (p.y * (self.height - 1) as f32).round() as usize;
+        self.set_coords(x, y, color);
+    }
+
+    fn set_coords(&mut self, x: usize, y: usize, color: Color) {
         let i = (x * self.height + y) * 4;
         self.data[i] = color.r;
         self.data[i + 1] = color.g;
@@ -152,7 +163,7 @@ impl QuadTree {
         QuadTree::new(Point::new(0.0, 0.0), Point::new(1.0, 1.0))
     }
 
-    fn insert(&mut self, p: &Point) {
+    fn insert(&mut self, p: Point) {
         let maybe_old_p: Option<Point>;
 
         match &mut self.tree {
@@ -170,10 +181,13 @@ impl QuadTree {
                 unreachable!("Failed to insert {:?} into {:?}", p, self);
             }
             TreeState::Leaf(Some(old_p)) => {
+                if p == *old_p {
+                    return;
+                }
                 maybe_old_p = Some(*old_p);
             }
             TreeState::Leaf(None) => {
-                let mut leaf = TreeState::Leaf(Some(*p));
+                let mut leaf = TreeState::Leaf(Some(p));
                 std::mem::swap(&mut leaf, &mut self.tree);
                 return;
             }
@@ -181,8 +195,18 @@ impl QuadTree {
 
         // Workaround for borrow checker, really this should be inside the Leaf(Some()) branch.
         self.split();
-        self.insert(&maybe_old_p.unwrap());
+        self.insert(maybe_old_p.unwrap());
         self.insert(p);
+    }
+
+    fn visit_leaves<F>(&self, f: &mut F)
+    where
+        F: FnMut(Point, Point),
+    {
+        match &self.tree {
+            TreeState::Inner(children) => children.iter().for_each(|c| c.visit_leaves(f)),
+            TreeState::Leaf(_) => f(self.from, self.to),
+        }
     }
 
     fn draw(&self, image: &mut Image) {
@@ -260,6 +284,76 @@ impl std::fmt::Display for QuadTree {
     }
 }
 
+struct ElectionMap {
+    votes: Vec<u8>,
+    width: usize,
+    height: usize,
+}
+
+impl ElectionMap {
+    fn new(width: usize, height: usize) -> ElectionMap {
+        ElectionMap {
+            votes: vec![0; width * height],
+            width,
+            height,
+        }
+    }
+
+    fn set_result(&mut self, from: Point, to: Point, winner: usize) {
+        let from_x = (from.x * (self.width - 1) as f32).round() as usize;
+        let from_y = (from.y * (self.height - 1) as f32).round() as usize;
+        let to_x = (to.x * (self.width - 1) as f32).round() as usize;
+        let to_y = (to.y * (self.height - 1) as f32).round() as usize;
+        for x in from_x..=to_x {
+            for y in from_y..=to_y {
+                let i = self.as_index(x, y);
+                self.votes[i] = winner as u8;
+            }
+        }
+    }
+
+    fn same_result_as_neighbours(&self, from: Point, to: Point) -> bool {
+        // We only need to check the immediate border of the rectangle.
+        let from_x = (from.x * (self.width - 1) as f32).round() as usize;
+        let from_y = (from.y * (self.height - 1) as f32).round() as usize;
+        let to_x = (to.x * (self.width - 1) as f32).round() as usize;
+        let to_y = (to.y * (self.height - 1) as f32).round() as usize;
+
+        let result = self.votes[self.as_index(from_x, from_y)];
+
+        for x in from_x..to_x {
+            if from_y > 0 && self.votes[self.as_index(x, from_y - 1)] != result {
+                return false;
+            }
+            if to_y + 1 < self.width && self.votes[self.as_index(x, to_y + 1)] != result {
+                return false;
+            }
+        }
+        for y in from_y..to_y {
+            if from_x > 0 && self.votes[self.as_index(from_x - 1, y)] != result {
+                return false;
+            }
+            if to_x + 1 < self.height && self.votes[self.as_index(to_x + 1, y)] != result {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn draw(&self, image: &mut Image, colors: &[Color]) {
+        for x in 0..self.width {
+            for y in 0..self.height {
+                let result = self.votes[self.as_index(x, y)];
+                image.set_coords(x, y, colors[result as usize]);
+            }
+        }
+    }
+
+    fn as_index(&self, x: usize, y: usize) -> usize {
+        x * self.height + y
+    }
+}
+
 fn normal_pdf(mean: f32, sigma: f32, x: f32) -> f32 {
     1f32 / (sigma * (2f32 * std::f32::consts::PI).sqrt())
         * (-1f32 / 2f32 * ((x - mean) / sigma).powi(2)).exp()
@@ -323,35 +417,48 @@ pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
 
     log!("sample points: {:?}", sample_points);
 
-    let mut image = Image::new(width, height);
-
     let mut tree = QuadTree::default();
     for p in candidates.iter() {
         let winner = run_election(*p, &candidates, &sample_points);
         log!("at {:?} elected: {:}", p, winner);
-        tree.insert(p);
+        tree.insert(*p);
     }
 
     log!("built tree: {}", tree);
+    let mut map = ElectionMap::new(width, height);
 
-    // Run an election for each leaf of the tree.
+    for i in 0..5 {
+        // Run an election for each leaf of the tree.
+        tree.visit_leaves(&mut |from: Point, to: Point| {
+            let mid = from + (to - from) * 0.5;
+            let winner = run_election(mid, &candidates, &sample_points);
+            // log!("at {:?} elected: {:}", mid, winner);
+            map.set_result(from, to, winner);
+        });
 
-    // Split all leaves whose neighbours don't all have the same election result.
+        // Split all leaves whose neighbours don't all have the same election result.
+        let mut to_split = vec![];
+        tree.visit_leaves(&mut |from: Point, to: Point| {
+            if !map.same_result_as_neighbours(from, to) {
+                // log!("need to split {}-{}", from, to);
+                to_split.push((from, to));
+            }
+        });
 
-    // Repeat until minimum leave size reached or no more splits are necessary.
-
-    for x in 0..width {
-        for y in 0..height {
-            let p = Point::new(
-                x as f32 / (width - 1) as f32,
-                y as f32 / (height - 1) as f32,
-            );
-            let winner = run_election(p, &candidates, &sample_points);
-            image.set(p, colors[winner]);
+        for (from, to) in to_split {
+            let dx = Vec2::new(to.x - from.x, 0.0);
+            let dy = Vec2::new(0.0, to.y - from.y);
+            tree.insert(from + dx * 0.25 + dy * 0.25);
+            tree.insert(from + dx * 0.25 + dy * 0.75);
+            tree.insert(from + dx * 0.75 + dy * 0.25);
+            tree.insert(from + dx * 0.75 + dy * 0.75);
         }
+        // Repeat until minimum leave size reached or no more splits are necessary.
     }
 
-    tree.draw(&mut image);
+    let mut image = Image::new(width, height);
+    map.draw(&mut image, &colors);
+    // tree.draw_outlines(&mut image);
 
     Ok(image.data)
 }
