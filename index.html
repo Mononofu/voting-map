@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width; initial-scale=1.0">
     <title>Hello wasm-pack!</title>
 </head>
 
@@ -71,7 +72,7 @@
             canvas.addEventListener('mousedown', selectCandidate);
             canvas.addEventListener('touchstart', ev => {
                 ev.preventDefault();
-                selectCandidate(ev);
+                selectCandidate(ev.touches[0]);
             });
 
             canvas.addEventListener('mouseup', (ev) => {
@@ -94,7 +95,7 @@
             canvas.addEventListener('mousemove', moveCandidate);
             canvas.addEventListener('touchmove', (ev) => {
                 ev.preventDefault();
-                moveCandidate(ev);
+                moveCandidate(ev.touches[0]);
             });
 
             draw();
