@@ -18,8 +18,8 @@
 
             const canvas = document.getElementById('vote-map');
 
-            const draw = (quality) => {
-                quality = quality || 7;
+            const draw = (maxRenderTime) => {
+                maxRenderTime = maxRenderTime || 0.5;
                 const ctx = canvas.getContext('2d');
                 try {
                     const candidateCoords = [];
@@ -30,13 +30,14 @@
 
                     const drawOutlines = false;
                     const drawPoints = false;
-                    const data = render(canvas.clientWidth, canvas.clientHeight, candidateCoords, quality, drawOutlines, drawPoints);
+                    const data = render(canvas.clientWidth, canvas.clientHeight, candidateCoords,
+                        maxRenderTime, drawOutlines, drawPoints);
                     const image = new ImageData(Uint8ClampedArray.from(data),
                         canvas.clientWidth, canvas.clientHeight);
                     ctx.putImageData(image, 0, 0);
                     for (const [x, y] of candidates) {
                         ctx.beginPath();
-                        ctx.arc(x * canvas.clientWidth, y * canvas.clientWidth, 5, 0, 2 * Math.PI);
+                        ctx.arc(x * canvas.clientWidth, y * canvas.clientHeight, 5, 0, 2 * Math.PI);
                         ctx.stroke();
                     }
                 } catch (e) {
@@ -89,7 +90,7 @@
                 const [x, y] = relativeCoords(ev);
                 selected[0] = x;
                 selected[1] = y;
-                draw(4);
+                draw(0.016); // 16 ms, to hit 60 FPS animation.
             }
 
             canvas.addEventListener('mousemove', moveCandidate);

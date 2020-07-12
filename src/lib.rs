@@ -1,6 +1,5 @@
 mod utils;
 
-use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -417,7 +416,6 @@ impl ElectionCache {
                 num_votes[(result - 1) as usize] += px * py;
             }
         }
-        // log!("total votes: {:?}", num_votes);
 
         num_votes
             .iter()
@@ -462,10 +460,12 @@ pub fn render(
     width: usize,
     height: usize,
     candidate_coords: Vec<f32>,
-    quality: i32,
+    max_render_time: f64,
     debug_draw_outlines: bool,
     debug_draw_points: bool,
 ) -> Result<Vec<u8>, JsValue> {
+    let deadline = now() + max_render_time;
+
     utils::set_panic_hook();
 
     let mut candidates = vec![];
@@ -482,9 +482,11 @@ pub fn render(
     candidates.iter().for_each(|p| tree.insert(*p));
     // log!("built tree: {}", tree);
 
+    let mut image = Image::new(width, height);
+
     // Repeatedly run elections for all areas of the tree that aren't settled yet.
     let mut map = ElectionMap::new(width, height);
-    let num_steps = quality;
+    let num_steps = (width as f32).log2().ceil() as usize;
     for i in 0..num_steps {
         let start = now();
         let mut num_elections = 0;
@@ -500,6 +502,20 @@ pub fn render(
         });
         let duration = now() - start;
 
+        log!(
+            "step {}: {:.1} elections/second - {} in {:.3}s",
+            i,
+            num_elections as f64 / duration,
+            num_elections,
+            duration
+        );
+
+        let last_step = i + 1 == num_steps;
+        if last_step || now() > deadline {
+            map.draw(&mut image, &colors);
+            break;
+        }
+
         // Split all leaves whose neighbours don't all have the same election result.
         let mut to_split = vec![];
         tree.visit_leaves(&mut |from: Point, to: Point| {
@@ -509,31 +525,18 @@ pub fn render(
             }
         });
 
-        let last_step = i + 1 == num_steps;
-
-        if !last_step {
-            for (from, to) in to_split {
-                map.clear(from, to);
-                let dx = Vec2::new(to.x - from.x, 0.0);
-                let dy = Vec2::new(0.0, to.y - from.y);
-                tree.insert(from + dx * 0.25 + dy * 0.25);
-                tree.insert(from + dx * 0.25 + dy * 0.75);
-                tree.insert(from + dx * 0.75 + dy * 0.25);
-                tree.insert(from + dx * 0.75 + dy * 0.75);
-            }
+        for (from, to) in to_split {
+            map.clear(from, to);
+            let dx = Vec2::new(to.x - from.x, 0.0);
+            let dy = Vec2::new(0.0, to.y - from.y);
+            tree.insert(from + dx * 0.25 + dy * 0.25);
+            tree.insert(from + dx * 0.25 + dy * 0.75);
+            tree.insert(from + dx * 0.75 + dy * 0.25);
+            tree.insert(from + dx * 0.75 + dy * 0.75);
         }
         // Repeat until minimum leave size reached or no more splits are necessary.
-        log!(
-            "step {}: {:.1} elections/second - {} in {:.3}s",
-            i,
-            num_elections as f64 / duration,
-            num_elections,
-            duration
-        );
     }
 
-    let mut image = Image::new(width, height);
-    map.draw(&mut image, &colors);
     if debug_draw_outlines {
         tree.draw_outlines(&mut image);
     }
