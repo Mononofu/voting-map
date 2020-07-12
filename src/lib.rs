@@ -32,6 +32,11 @@ impl Color {
         g: 255,
         b: 0,
     };
+    const PINK: Color = Color {
+        r: 255,
+        g: 20,
+        b: 147,
+    };
 }
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 struct Point {
@@ -455,6 +460,14 @@ fn now() -> f64 {
         / 1e3
 }
 
+const CANDIDATE_COLORS: [Color; 5] = [
+    Color::RED,
+    Color::GREEN,
+    Color::BLUE,
+    Color::YELLOW,
+    Color::PINK,
+];
+
 #[wasm_bindgen]
 pub fn render(
     width: usize,
@@ -474,8 +487,6 @@ pub fn render(
     }
 
     let mut election_cache = ElectionCache::new(&candidates);
-
-    let colors = vec![Color::RED, Color::GREEN, Color::BLUE];
 
     // Initialize quad tree with the location of all candidates.
     let mut tree = QuadTree::default();
@@ -512,7 +523,7 @@ pub fn render(
 
         let last_step = i + 1 == num_steps;
         if last_step || now() > deadline {
-            map.draw(&mut image, &colors);
+            map.draw(&mut image, &CANDIDATE_COLORS);
             break;
         }
 
@@ -545,4 +556,9 @@ pub fn render(
     }
 
     Ok(image.data)
+}
+
+#[wasm_bindgen]
+pub fn max_candidates() -> usize {
+    CANDIDATE_COLORS.len()
 }

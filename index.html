@@ -10,16 +10,18 @@
 <body>
     <canvas id="vote-map" style="width: 100%; max-width: 512px;"></canvas>
     <script type="module">
-        import init, { render } from './pkg/voting_map.js';
+        import init, { render, max_candidates } from './pkg/voting_map.js';
 
         async function main() {
             await init();
             reloadOnChange();
 
-
-            const mapSize = 256;
+            // Make the canvas square.
             const canvas = document.getElementById('vote-map');
             canvas.style.height = canvas.clientWidth + 'px';
+
+            // Set the rendered size, as opposed to the size that the element is scaled to.
+            const mapSize = 256;
             canvas.height = mapSize;
             canvas.width = mapSize;
 
@@ -51,7 +53,7 @@
 
             let isDrawing = false;
             let selected = null;
-            const candidates = [[0.5, 0.99], [0.07, 0.25], [0.93, 0.25]];
+            const candidates = [[0.5, 0.87], [0.07, 0.13], [0.93, 0.13]];
 
             const relativeCoords = ev => {
                 const rect = canvas.getBoundingClientRect();
@@ -60,8 +62,11 @@
                 return [x, y];
             }
 
+            let lastPos = null;
+
             const selectCandidate = ev => {
                 const [x, y] = relativeCoords(ev);
+                lastPos = [x, y];
 
                 let minDist = 1;
                 for (const cand of candidates) {
@@ -72,6 +77,11 @@
                         minDist = dist;
                     }
                 }
+
+                if (!selected && candidates.length < max_candidates()) {
+                    candidates.push([x, y]);
+                    selected = candidates[candidates.length - 1];
+                }
             };
 
             canvas.addEventListener('mousedown', selectCandidate);
@@ -80,18 +90,27 @@
                 selectCandidate(ev.touches[0]);
             });
 
-            canvas.addEventListener('mouseup', (ev) => {
+            const dragEnd = () => {
+                if (selected != null) {
+                    const [x, y] = lastPos;
+                    if (x < 0 || x > 1 || y < 0 || y > 1) {
+                        // Out of bounds, remove the candidate.
+                        const i = candidates.indexOf(selected);
+                        candidates.splice(i, 1);
+
+                    }
+                }
                 selected = null;
                 draw();
-            });
-            document.body.addEventListener('touchend', e => {
-                selected = null;
-                draw();
-            });
+            };
+
+            document.addEventListener('mouseup', dragEnd);
+            document.addEventListener('touchend', dragEnd);
 
             const moveCandidate = ev => {
-                if (!selected) return;
                 const [x, y] = relativeCoords(ev);
+                lastPos = [x, y];
+                if (!selected || x < 0 || x > 1 || y < 0 || y > 1) return;
                 selected[0] = x;
                 selected[1] = y;
                 draw(0.016); // 16 ms, to hit 60 FPS animation.
