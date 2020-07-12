@@ -16,12 +16,46 @@
             reloadOnChange();
 
             const canvas = document.getElementById('vote-map');
+
+            let isDrawing = false;
+            const candidates = [[0.5, 0.99], [0.07, 0.25], [0.93, 0.25]];
+
+            canvas.addEventListener('mousedown', (ev) => {
+                isDrawing = true;
+            });
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                isDrawing = true;
+            });
+
+            canvas.addEventListener('mouseup', (ev) => {
+                isDrawing = false;
+            });
+            document.body.addEventListener('touchend', e => {
+                isDrawing = false;
+            });
+
+            canvas.addEventListener('mousemove', (ev) => {
+                if (!isDrawing) return;
+                console.log('drawing', ev);
+            });
+            canvas.addEventListener('touchmove', (ev) => {
+                if (!isDrawing) return;
+                e.preventDefault();
+                console.log('drawing', ev);
+            });
+
             const ctx = canvas.getContext('2d');
             try {
                 const data = render(canvas.clientWidth, canvas.clientHeight);
                 const image = new ImageData(Uint8ClampedArray.from(data),
                     canvas.clientWidth, canvas.clientHeight);
                 ctx.putImageData(image, 0, 0);
+                for (let [x, y] of candidates) {
+                    ctx.beginPath();
+                    ctx.arc(x * canvas.clientWidth, y * canvas.clientWidth, 5, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
             } catch (e) {
                 console.error(e);
             }

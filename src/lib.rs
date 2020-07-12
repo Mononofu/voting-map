@@ -119,7 +119,7 @@ impl Image {
     }
 
     fn set_coords(&mut self, x: usize, y: usize, color: Color) {
-        let i = (x * self.height + y) * 4;
+        let i = (y * self.width + x) * 4;
         self.data[i] = color.r;
         self.data[i + 1] = color.g;
         self.data[i + 2] = color.b;
@@ -490,6 +490,7 @@ pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
     let mut image = Image::new(width, height);
     map.draw(&mut image, &colors);
     // tree.draw_outlines(&mut image);
+    // tree.draw_values(&mut image);
 
     Ok(image.data)
 }
