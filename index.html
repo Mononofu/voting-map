@@ -7,7 +7,7 @@
 </head>
 
 <body>
-    <canvas id="vote-map" height="128" width="128"></canvas>
+    <canvas id="vote-map" height="128" width="128" style="padding: 0"></canvas>
     <script type="module">
         import init, { render } from './pkg/voting_map.js';
 
@@ -17,48 +17,88 @@
 
             const canvas = document.getElementById('vote-map');
 
+            const draw = (quality) => {
+                quality = quality || 6;
+                const ctx = canvas.getContext('2d');
+                try {
+                    const candidateCoords = [];
+                    for (const [x, y] of candidates) {
+                        candidateCoords.push(x);
+                        candidateCoords.push(y);
+                    }
+
+                    const data = render(canvas.clientWidth, canvas.clientHeight, candidateCoords, quality);
+                    const image = new ImageData(Uint8ClampedArray.from(data),
+                        canvas.clientWidth, canvas.clientHeight);
+                    ctx.putImageData(image, 0, 0);
+                    for (const [x, y] of candidates) {
+                        ctx.beginPath();
+                        ctx.arc(x * canvas.clientWidth, y * canvas.clientWidth, 5, 0, 2 * Math.PI);
+                        ctx.stroke();
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
             let isDrawing = false;
+            let selected = null;
             const candidates = [[0.5, 0.99], [0.07, 0.25], [0.93, 0.25]];
 
-            canvas.addEventListener('mousedown', (ev) => {
-                isDrawing = true;
-            });
-            canvas.addEventListener('touchstart', e => {
-                e.preventDefault();
-                isDrawing = true;
+            const relativeCoords = ev => {
+                const rect = canvas.getBoundingClientRect();
+                const x = (ev.clientX - rect.left) / canvas.clientWidth;
+                const y = (ev.clientY - rect.top) / canvas.clientHeight;
+                return [x, y];
+            }
+
+            const selectCandidate = ev => {
+                console.log('down', ev);
+                const [x, y] = relativeCoords(ev);
+
+                let minDist = 1;
+                for (const cand of candidates) {
+                    const [cx, cy] = cand;
+                    const dist = Math.sqrt(Math.pow(cx - x, 2) + Math.pow(cy - y, 2));
+                    if (dist < minDist && dist < 0.05) {
+                        selected = cand;
+                        minDist = dist;
+                        console.log(x, y, cand, dist);
+                    }
+                }
+            };
+
+            canvas.addEventListener('mousedown', selectCandidate);
+            canvas.addEventListener('touchstart', ev => {
+                ev.preventDefault();
+                selectCandidate(ev);
             });
 
             canvas.addEventListener('mouseup', (ev) => {
-                isDrawing = false;
+                selected = null;
+                draw();
             });
             document.body.addEventListener('touchend', e => {
-                isDrawing = false;
+                selected = null;
+                draw();
             });
 
-            canvas.addEventListener('mousemove', (ev) => {
-                if (!isDrawing) return;
-                console.log('drawing', ev);
-            });
-            canvas.addEventListener('touchmove', (ev) => {
-                if (!isDrawing) return;
-                e.preventDefault();
-                console.log('drawing', ev);
-            });
-
-            const ctx = canvas.getContext('2d');
-            try {
-                const data = render(canvas.clientWidth, canvas.clientHeight);
-                const image = new ImageData(Uint8ClampedArray.from(data),
-                    canvas.clientWidth, canvas.clientHeight);
-                ctx.putImageData(image, 0, 0);
-                for (let [x, y] of candidates) {
-                    ctx.beginPath();
-                    ctx.arc(x * canvas.clientWidth, y * canvas.clientWidth, 5, 0, 2 * Math.PI);
-                    ctx.stroke();
-                }
-            } catch (e) {
-                console.error(e);
+            const moveCandidate = ev => {
+                if (!selected) return;
+                const [x, y] = relativeCoords(ev);
+                selected[0] = x;
+                selected[1] = y;
+                console.log(selected);
+                draw(3);
             }
+
+            canvas.addEventListener('mousemove', moveCandidate);
+            canvas.addEventListener('touchmove', (ev) => {
+                ev.preventDefault();
+                moveCandidate(ev);
+            });
+
+            draw();
         }
 
         async function reloadOnChange(createdAt = null) {

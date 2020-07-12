@@ -39,7 +39,6 @@ impl Color {
         b: 0,
     };
 }
-
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 struct Point {
     x: f32,
@@ -414,12 +413,17 @@ fn run_election(p: Point, candidates: &[Point], sample_locations: &[(f32, f32)])
 }
 
 #[wasm_bindgen]
-pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
-    let candidates = vec![
-        Point::new(0.5, 0.99),
-        Point::new(0.07, 0.25),
-        Point::new(0.93, 0.25),
-    ];
+pub fn render(
+    width: usize,
+    height: usize,
+    candidate_coords: Vec<f32>,
+    quality: i32,
+) -> Result<Vec<u8>, JsValue> {
+    let mut candidates = vec![];
+    for i in (0..candidate_coords.len()).step_by(2) {
+        candidates.push(Point::new(candidate_coords[i], candidate_coords[i + 1]));
+    }
+
     let sigma = 0.5f32;
     let num_sigma = 3;
     let num_samples = 50;
@@ -446,7 +450,7 @@ pub fn render(width: usize, height: usize) -> Result<Vec<u8>, JsValue> {
     log!("built tree: {}", tree);
     let mut map = ElectionMap::new(width, height);
 
-    let num_steps = 6;
+    let num_steps = quality;
     for i in 0..num_steps {
         let mut num_elections = 0;
         // Run an election for each leaf of the tree.
