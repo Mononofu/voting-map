@@ -369,17 +369,19 @@ struct ElectionCache {
     candidates: Vec<Point>,
     sample_locations: Vec<(f32, f32)>,
     cached_results: Vec<u8>,
+    cached_row_present: Vec<bool>,
+    cached_rows: Vec<[f32; CANDIDATE_COLORS.len()]>,
     vote_granularity: i32,
     values_per_dim: usize,
 }
 
 impl ElectionCache {
     fn new(candidates: &[Point]) -> ElectionCache {
-        let vote_granularity = 100;
+        let vote_granularity = 256;
 
         let sigma = 0.5f32;
         let num_sigma = 3.0;
-        let num_samples = 10;
+        let num_samples = 50;
         let bounds = (sigma * num_sigma * num_samples as f32) as i32;
         let mut sample_locations = vec![];
         for x in -bounds..=bounds {
@@ -390,10 +392,13 @@ impl ElectionCache {
 
         let range = sigma * num_sigma;
         let values_per_dim = (vote_granularity as f32 * (1.0 + range * 2.0)) as usize;
+        log!("values_per_dim: {}", values_per_dim);
         ElectionCache {
             candidates: candidates.to_vec(),
             sample_locations,
             cached_results: vec![0; 2 * values_per_dim * values_per_dim],
+            cached_row_present: vec![false; 2 * values_per_dim * values_per_dim],
+            cached_rows: vec![[0f32; CANDIDATE_COLORS.len()]; 2 * values_per_dim * values_per_dim],
             vote_granularity,
             values_per_dim,
         }
@@ -402,18 +407,32 @@ impl ElectionCache {
     fn election(&mut self, p: Point) -> usize {
         let mut num_votes = vec![0f32; self.candidates.len()];
         for (dx, px) in self.sample_locations.iter() {
-            for (dy, py) in self.sample_locations.iter() {
-                let at = Point::new(p.x + dx, p.y + dy);
+            let row_p = Point::new(p.x + dx, p.y);
 
-                let cache_idx = self.cache_index(at);
+            // This should really be in a separate method, but is inline to make the borrow checker happy :(
+            let cache_idx = self.cache_index(row_p);
+            if !self.cached_row_present[cache_idx] {
+                let mut num_votes = [0f32; CANDIDATE_COLORS.len()];
+                for (dy, py) in self.sample_locations.iter() {
+                    let at = Point::new(row_p.x, row_p.y + dy);
 
-                let mut result = self.cached_results[cache_idx];
-                if result == 0 {
-                    result = select_candidate(at, &self.candidates) + 1;
-                    self.cached_results[cache_idx] = result;
+                    let cache_idx = self.cache_index(at);
+
+                    let mut result = self.cached_results[cache_idx];
+                    if result == 0 {
+                        result = select_candidate(at, &self.candidates) + 1;
+                        self.cached_results[cache_idx] = result;
+                    }
+
+                    num_votes[(result - 1) as usize] += *py;
                 }
+                self.cached_rows[cache_idx] = num_votes;
+                self.cached_row_present[cache_idx] = true;
+            }
+            let row_votes = self.cached_rows[cache_idx];
 
-                num_votes[(result - 1) as usize] += px * py;
+            for i in 0..self.candidates.len() {
+                num_votes[i] += *px * row_votes[i];
             }
         }
 
@@ -515,7 +534,7 @@ pub fn render(
         );
 
         let last_step = i + 1 == num_steps;
-        if last_step || now() > deadline {
+        if last_step || (i >= 1 && now() > deadline) {
             map.draw(&mut image, &CANDIDATE_COLORS);
             break;
         }
