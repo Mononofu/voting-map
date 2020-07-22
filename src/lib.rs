@@ -34,13 +34,13 @@ impl Color {
     };
 }
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-struct Point {
+pub struct Point {
     x: f32,
     y: f32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-struct Vec2 {
+pub struct Vec2 {
     dx: f32,
     dy: f32,
 }
@@ -59,7 +59,7 @@ impl std::ops::Mul<f32> for Vec2 {
 }
 
 impl Point {
-    fn new(x: f32, y: f32) -> Point {
+    pub fn new(x: f32, y: f32) -> Point {
         Point { x, y }
     }
 
@@ -90,365 +90,27 @@ impl std::fmt::Display for Point {
 
 struct Image {
     data: Vec<u8>,
-    height: usize,
-    width: usize,
+    size: usize,
 }
 
 impl Image {
-    fn new(width: usize, height: usize) -> Image {
+    fn new(size: usize) -> Image {
         let mut data = Vec::new();
-        data.resize(width * height * 4, 255);
-        Image {
-            data,
-            height,
-            width,
-        }
-    }
-
-    fn set(&mut self, p: Point, color: Color) {
-        let x = (p.x * (self.width - 1) as f32).round() as usize;
-        let y = (p.y * (self.height - 1) as f32).round() as usize;
-        self.set_coords(x, y, color);
+        data.resize(size * size * 4, 255);
+        Image { data, size }
     }
 
     fn set_coords(&mut self, x: usize, y: usize, color: Color) {
-        let i = (y * self.width + x) * 4;
+        let i = (y * self.size + x) * 4;
         self.data[i] = color.r;
         self.data[i + 1] = color.g;
         self.data[i + 2] = color.b;
-    }
-
-    fn line(&mut self, from: Point, to: Point, color: Color) {
-        let dx = if from.x == to.x { 0.0 } else { 1.0 };
-        let dy = if from.y == to.y { 0.0 } else { 1.0 };
-        let dp = Vec2::new(dx / self.height as f32, dy / self.width as f32);
-        let mut cur = from;
-        while cur <= to {
-            self.set(cur, color);
-            cur = cur + dp;
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum TreeState {
-    Inner(Box<[QuadTree; 4]>),
-    Leaf(Option<Point>),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct QuadTree {
-    from: Point,
-    to: Point,
-    tree: TreeState,
-}
-
-impl QuadTree {
-    fn new(from: Point, to: Point) -> QuadTree {
-        QuadTree {
-            from,
-            to,
-            tree: TreeState::Leaf(None),
-        }
-    }
-
-    fn default() -> QuadTree {
-        QuadTree::new(Point::new(0.0, 0.0), Point::new(1.0, 1.0))
-    }
-
-    fn insert(&mut self, p: Point) {
-        let maybe_old_p: Option<Point>;
-
-        match &mut self.tree {
-            TreeState::Inner(children) => {
-                for child in children.iter_mut() {
-                    if p.x >= child.from.x
-                        && p.x <= child.to.x
-                        && p.y >= child.from.y
-                        && p.y <= child.to.y
-                    {
-                        child.insert(p);
-                        return;
-                    }
-                }
-                unreachable!("Failed to insert {:?} into {:?}", p, self);
-            }
-            TreeState::Leaf(Some(old_p)) => {
-                if p == *old_p {
-                    return;
-                }
-                maybe_old_p = Some(*old_p);
-            }
-            TreeState::Leaf(None) => {
-                let mut leaf = TreeState::Leaf(Some(p));
-                std::mem::swap(&mut leaf, &mut self.tree);
-                return;
-            }
-        }
-
-        // Workaround for borrow checker, really this should be inside the Leaf(Some()) branch.
-        self.split();
-        self.insert(maybe_old_p.unwrap());
-        self.insert(p);
-    }
-
-    fn visit_leaves<F>(&self, f: &mut F)
-    where
-        F: FnMut(Point, Point),
-    {
-        match &self.tree {
-            TreeState::Inner(children) => children.iter().for_each(|c| c.visit_leaves(f)),
-            TreeState::Leaf(_) => f(self.from, self.to),
-        }
-    }
-
-    fn draw_outlines(&self, image: &mut Image) {
-        match &self.tree {
-            TreeState::Inner(children) => children.iter().for_each(|c| c.draw_outlines(image)),
-            TreeState::Leaf(_) => {
-                image.line(self.from, Point::new(self.from.x, self.to.y), Color::BLACK);
-                image.line(
-                    Point::new(self.to.x, self.from.y),
-                    Point::new(self.to.x, self.to.y),
-                    Color::BLACK,
-                );
-                image.line(self.from, Point::new(self.to.x, self.from.y), Color::BLACK);
-                image.line(
-                    Point::new(self.from.x, self.to.y),
-                    Point::new(self.to.x, self.to.y),
-                    Color::BLACK,
-                );
-            }
-        }
-    }
-
-    fn draw_values(&self, image: &mut Image) {
-        match &self.tree {
-            TreeState::Inner(children) => children.iter().for_each(|c| c.draw_values(image)),
-            TreeState::Leaf(value) => {
-                if let Some(p) = value {
-                    image.set(*p, Color::YELLOW);
-                }
-            }
-        }
-    }
-
-    fn split(&mut self) {
-        let mid_x = (self.from.x + self.to.x) / 2.0;
-        let mid_y = (self.from.y + self.to.y) / 2.0;
-
-        let mut inner = TreeState::Inner(Box::new([
-            Self::new(self.from, Point::new(mid_x, mid_y)), // top left
-            Self::new(Point::new(mid_x, self.from.y), Point::new(self.to.x, mid_y)), // top right
-            Self::new(Point::new(self.from.x, mid_y), Point::new(mid_x, self.to.y)), // bottom left
-            Self::new(Point::new(mid_x, mid_y), self.to),   // bottom right
-        ]));
-        std::mem::swap(&mut inner, &mut self.tree);
-    }
-
-    fn fmt_impl(&self, f: &mut std::fmt::Formatter, depth: i32) -> std::fmt::Result {
-        let indent = (0..depth * 2).map(|_| " ").collect::<String>();
-        match &self.tree {
-            TreeState::Leaf(None) => write!(f, "{}Empty {} - {}", indent, self.from, self.to),
-            TreeState::Leaf(Some(p)) => {
-                write!(f, "{}Leaf {} - {} = {}", indent, self.from, self.to, p)
-            }
-            TreeState::Inner(children) => {
-                write!(f, "{}QuadTree {} - {}", indent, self.from, self.to)?;
-                for child in children.iter() {
-                    writeln!(f)?;
-                    child.fmt_impl(f, depth + 1)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for QuadTree {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.fmt_impl(f, 0)
-    }
-}
-
-struct ElectionMap {
-    result: Vec<u8>,
-    width: usize,
-    height: usize,
-}
-
-impl ElectionMap {
-    fn new(width: usize, height: usize) -> ElectionMap {
-        ElectionMap {
-            result: vec![0; width * height],
-            width,
-            height,
-        }
-    }
-
-    fn set_result(&mut self, from: Point, to: Point, winner: usize) {
-        self.set_rect(from, to, winner as u8 + 1);
-    }
-
-    fn has_result(&self, _from: Point, to: Point) -> bool {
-        let from_x = (to.x * (self.width - 1) as f32).round() as usize;
-        let from_y = (to.y * (self.height - 1) as f32).round() as usize;
-        self.result[self.as_index(from_x, from_y)] > 0
-    }
-
-    fn clear(&mut self, from: Point, to: Point) {
-        self.set_rect(from, to, 0);
-    }
-
-    fn set_rect(&mut self, from: Point, to: Point, value: u8) {
-        let from_x = (from.x * (self.width - 1) as f32).round() as usize;
-        let from_y = (from.y * (self.height - 1) as f32).round() as usize;
-        let to_x = (to.x * (self.width - 1) as f32).round() as usize;
-        let to_y = (to.y * (self.height - 1) as f32).round() as usize;
-        for x in from_x..=to_x {
-            for y in from_y..=to_y {
-                let i = self.as_index(x, y);
-                self.result[i] = value;
-            }
-        }
-    }
-
-    fn same_result_as_neighbours(&self, from: Point, to: Point) -> bool {
-        // We only need to check the immediate border of the rectangle.
-        let from_x = (from.x * (self.width - 1) as f32).round() as usize;
-        let from_y = (from.y * (self.height - 1) as f32).round() as usize;
-        let to_x = (to.x * (self.width - 1) as f32).round() as usize;
-        let to_y = (to.y * (self.height - 1) as f32).round() as usize;
-
-        let result = self.result[self.as_index(from_x, from_y)];
-
-        for x in from_x..to_x {
-            if from_y > 0 && self.result[self.as_index(x, from_y - 1)] != result {
-                return false;
-            }
-            if to_y + 1 < self.width && self.result[self.as_index(x, to_y + 1)] != result {
-                return false;
-            }
-        }
-        for y in from_y..to_y {
-            if from_x > 0 && self.result[self.as_index(from_x - 1, y)] != result {
-                return false;
-            }
-            if to_x + 1 < self.height && self.result[self.as_index(to_x + 1, y)] != result {
-                return false;
-            }
-        }
-        true
-    }
-
-    fn draw(&self, image: &mut Image, colors: &[Color]) {
-        for x in 0..self.width {
-            for y in 0..self.height {
-                let result = (self.result[self.as_index(x, y)] - 1) as usize;
-                let color = if result < colors.len() {
-                    colors[result]
-                } else {
-                    Color::BLACK
-                };
-                image.set_coords(x, y, color);
-            }
-        }
-    }
-
-    fn as_index(&self, x: usize, y: usize) -> usize {
-        x * self.height + y
     }
 }
 
 fn normal_pdf(mean: f32, sigma: f32, x: f32) -> f32 {
     1f32 / (sigma * (2f32 * std::f32::consts::PI).sqrt())
         * (-1f32 / 2f32 * ((x - mean) / sigma).powi(2)).exp()
-}
-
-struct ElectionCache {
-    candidates: Vec<Point>,
-    sample_locations: Vec<(f32, f32)>,
-    cached_results: Vec<u8>,
-    cached_row_present: Vec<bool>,
-    cached_rows: Vec<[f32; CANDIDATE_COLORS.len()]>,
-    vote_granularity: i32,
-    values_per_dim: usize,
-}
-
-impl ElectionCache {
-    fn new(candidates: &[Point]) -> ElectionCache {
-        let vote_granularity = 256;
-
-        let sigma = 0.5f32;
-        let num_sigma = 3.0;
-        let num_samples = 50;
-        let bounds = (sigma * num_sigma * num_samples as f32) as i32;
-        let mut sample_locations = vec![];
-        for x in -bounds..=bounds {
-            let x = x as f32 / num_samples as f32;
-            let p = normal_pdf(0f32, sigma, x);
-            sample_locations.push((x, p));
-        }
-
-        let range = sigma * num_sigma;
-        let values_per_dim = (vote_granularity as f32 * (1.0 + range * 2.0)) as usize;
-        log!("values_per_dim: {}", values_per_dim);
-        ElectionCache {
-            candidates: candidates.to_vec(),
-            sample_locations,
-            cached_results: vec![0; 2 * values_per_dim * values_per_dim],
-            cached_row_present: vec![false; 2 * values_per_dim * values_per_dim],
-            cached_rows: vec![[0f32; CANDIDATE_COLORS.len()]; 2 * values_per_dim * values_per_dim],
-            vote_granularity,
-            values_per_dim,
-        }
-    }
-
-    fn election(&mut self, p: Point) -> usize {
-        let mut num_votes = vec![0f32; self.candidates.len()];
-        for (dx, px) in self.sample_locations.iter() {
-            let row_p = Point::new(p.x + dx, p.y);
-
-            // This should really be in a separate method, but is inline to make the borrow checker happy :(
-            let cache_idx = self.cache_index(row_p);
-            if !self.cached_row_present[cache_idx] {
-                let mut num_votes = [0f32; CANDIDATE_COLORS.len()];
-                for (dy, py) in self.sample_locations.iter() {
-                    let at = Point::new(row_p.x, row_p.y + dy);
-
-                    let cache_idx = self.cache_index(at);
-
-                    let mut result = self.cached_results[cache_idx];
-                    if result == 0 {
-                        result = select_candidate(at, &self.candidates) + 1;
-                        self.cached_results[cache_idx] = result;
-                    }
-
-                    num_votes[(result - 1) as usize] += *py;
-                }
-                self.cached_rows[cache_idx] = num_votes;
-                self.cached_row_present[cache_idx] = true;
-            }
-            let row_votes = self.cached_rows[cache_idx];
-
-            for i in 0..self.candidates.len() {
-                num_votes[i] += *px * row_votes[i];
-            }
-        }
-
-        num_votes
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-            .map(|(i, _)| i)
-            .unwrap()
-    }
-
-    fn cache_index(&self, p: Point) -> usize {
-        let x = (p.x * self.vote_granularity as f32) as i32;
-        let y = (p.y * self.vote_granularity as f32) as i32;
-        (self.values_per_dim + x as usize) * self.values_per_dim + y as usize + self.values_per_dim
-    }
 }
 
 fn select_candidate(p: Point, candidates: &[Point]) -> u8 {
@@ -464,16 +126,6 @@ fn select_candidate(p: Point, candidates: &[Point]) -> u8 {
     closest_i as u8
 }
 
-// Returns time in seconds.
-fn now() -> f64 {
-    web_sys::window()
-        .expect("should have a Window")
-        .performance()
-        .expect("should have a Performance")
-        .now()
-        / 1e3
-}
-
 const CANDIDATE_COLORS: [Color; 5] = [
     Color::RED,
     Color::GREEN,
@@ -483,87 +135,20 @@ const CANDIDATE_COLORS: [Color; 5] = [
 ];
 
 #[wasm_bindgen]
-pub fn render(
-    width: usize,
-    height: usize,
-    candidate_coords: Vec<f32>,
-    max_render_time: f64,
-    debug_draw_outlines: bool,
-    debug_draw_points: bool,
-) -> Result<Vec<u8>, JsValue> {
-    let deadline = now() + max_render_time;
-
+pub fn render(size: usize, candidate_coords: Vec<f32>) -> Result<Vec<u8>, JsValue> {
     utils::set_panic_hook();
 
     let mut candidates = vec![];
     for i in (0..candidate_coords.len()).step_by(2) {
         candidates.push(Point::new(candidate_coords[i], candidate_coords[i + 1]));
     }
-
-    let mut election_cache = ElectionCache::new(&candidates);
-
-    // Initialize quad tree with the location of all candidates.
-    let mut tree = QuadTree::default();
-    candidates.iter().for_each(|p| tree.insert(*p));
-
-    let mut image = Image::new(width, height);
-
-    // Repeatedly run elections for all areas of the tree that aren't settled yet.
-    let mut map = ElectionMap::new(width, height);
-    let num_steps = (width as f32).log2().ceil() as usize;
-    for i in 0..num_steps {
-        let start = now();
-        let mut num_elections = 0;
-        // Run an election for each leaf of the tree.
-        tree.visit_leaves(&mut |from: Point, to: Point| {
-            if !map.has_result(from, to) {
-                let mid = from + (to - from) * 0.5;
-                let winner = election_cache.election(mid);
-                map.set_result(from, to, winner);
-                num_elections += 1;
-            }
-        });
-        let duration = now() - start;
-
-        log!(
-            "step {}: {:.1} elections/second - {} in {:.3}s",
-            i,
-            num_elections as f64 / duration,
-            num_elections,
-            duration
-        );
-
-        let last_step = i + 1 == num_steps;
-        if last_step || (i >= 1 && now() > deadline) {
-            map.draw(&mut image, &CANDIDATE_COLORS);
-            break;
+    let winners = election(size as i32, &candidates);
+    let mut image = Image::new(size);
+    for x in 0..size {
+        for y in 0..size {
+            let winner = winners[x * size + y];
+            image.set_coords(x, y, CANDIDATE_COLORS[winner as usize]);
         }
-
-        // Split all leaves whose neighbours don't all have the same election result.
-        let mut to_split = vec![];
-        tree.visit_leaves(&mut |from: Point, to: Point| {
-            if !map.same_result_as_neighbours(from, to) {
-                to_split.push((from, to));
-            }
-        });
-
-        for (from, to) in to_split {
-            map.clear(from, to);
-            let dx = Vec2::new(to.x - from.x, 0.0);
-            let dy = Vec2::new(0.0, to.y - from.y);
-            tree.insert(from + dx * 0.25 + dy * 0.25);
-            tree.insert(from + dx * 0.25 + dy * 0.75);
-            tree.insert(from + dx * 0.75 + dy * 0.25);
-            tree.insert(from + dx * 0.75 + dy * 0.75);
-        }
-        // Repeat until minimum leave size reached or no more splits are necessary.
-    }
-
-    if debug_draw_outlines {
-        tree.draw_outlines(&mut image);
-    }
-    if debug_draw_points {
-        tree.draw_values(&mut image);
     }
 
     Ok(image.data)
@@ -572,4 +157,83 @@ pub fn render(
 #[wasm_bindgen]
 pub fn max_candidates() -> usize {
     CANDIDATE_COLORS.len()
+}
+
+pub fn election(size: i32, candidates: &[Point]) -> Vec<u8> {
+    let sigma = 0.5f32;
+    let num_sigma = 3.0;
+    // The vote map is [0; 1], so we need to compute votes in [-num_sigma * sigma; 1 + num_sigma * sigma].
+    let range = (size as f32 * sigma * num_sigma) as i32;
+    let start = -range;
+    let end = size + range;
+
+    log!("Plotting from {} to {}", start, end);
+
+    let padded_size = (end - start) as i32;
+    let mut results = vec![0u8; padded_size.pow(2) as usize];
+
+    // Compute voting results at each individual point.
+    for x in start..end {
+        for y in start..end {
+            let at = Point::new(x as f32 / size as f32, y as f32 / size as f32);
+            let winner = select_candidate(at, &candidates);
+
+            let i = x - start;
+            let j = y - start;
+            results[(i * padded_size + j) as usize] = winner;
+        }
+    }
+
+    // Neighbourhood weighting.
+    let mut sample_locations = vec![];
+    for x in -range..range {
+        let p = normal_pdf(0f32, sigma, x as f32 / size as f32);
+        sample_locations.push((x, p));
+    }
+
+    // Sum up all the votes for the neighbour of each point.
+    let mut num_votes = vec![0f32; size.pow(2) as usize * candidates.len()];
+    for x in 0..size {
+        for y in start..end {
+            // Sum up all the votes along the x-neighbourhood.
+            let mut line_votes = vec![0f32; candidates.len()];
+            for (dx, p) in sample_locations.iter() {
+                let i = x + dx - start;
+                let j = y - start;
+                let winner = results[(i * padded_size + j) as usize];
+                line_votes[winner as usize] += p;
+            }
+
+            // Add the summed votes to all points with the same x coordinate,
+            // weighted by the distance along the y-axis.
+            for (dy, p) in sample_locations.iter() {
+                let yp = y + dy;
+                if yp >= 0 && yp < size {
+                    for i in 0..candidates.len() {
+                        num_votes[((x * size) + yp) as usize * candidates.len() + i] +=
+                            line_votes[i] * p;
+                    }
+                }
+            }
+        }
+    }
+
+    // Select the winner of the election for each point.
+    let mut winners = vec![0u8; size.pow(2) as usize];
+    for x in 0..size {
+        for y in 0..size {
+            let i = ((x * size) + y) as usize * candidates.len();
+            let votes = &num_votes[i..i + candidates.len()];
+
+            let winner = votes
+                .iter()
+                .enumerate()
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .map(|(i, _)| i)
+                .unwrap();
+            winners[(x * size + y) as usize] = winner as u8;
+        }
+    }
+
+    winners
 }

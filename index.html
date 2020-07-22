@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width; initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hello wasm-pack!</title>
 </head>
 
@@ -20,13 +20,18 @@
             const canvas = document.getElementById('vote-map');
             canvas.style.height = canvas.clientWidth + 'px';
 
-            // Set the rendered size, as opposed to the size that the element is scaled to.
-            const mapSize = 256;
-            canvas.height = mapSize;
-            canvas.width = mapSize;
+            let isDrawing = false;
+            let selected = null;
+            // const candidates = [[0.4, 0.87], [0.6, 0.87], [0.07, 0.13], [0.93, 0.13]];
+            // const candidates = [[0.12, 0.28], [0.85, 0.7], [0.39, 0.28], [0.97, 0.14]];
+            const candidates = [[0.5, 0.87], [0.07, 0.13], [0.93, 0.13]];
 
-            const draw = (maxRenderTime) => {
-                maxRenderTime = maxRenderTime || 0.5;
+            const draw = () => {
+                const mapSize = selected == null ? 128 : 64;
+                // Set the rendered size, as opposed to the size that the element is scaled to. 
+                canvas.height = mapSize;
+                canvas.width = mapSize;
+
                 const ctx = canvas.getContext('2d');
                 try {
                     const candidateCoords = [];
@@ -35,10 +40,7 @@
                         candidateCoords.push(y);
                     }
 
-                    const drawOutlines = false;
-                    const drawPoints = false;
-                    const data = render(mapSize, mapSize, candidateCoords,
-                        maxRenderTime, drawOutlines, drawPoints);
+                    const data = render(mapSize, candidateCoords);
                     const image = new ImageData(Uint8ClampedArray.from(data), mapSize, mapSize);
                     ctx.putImageData(image, 0, 0);
                     for (const [x, y] of candidates) {
@@ -50,10 +52,6 @@
                     console.error(e);
                 }
             }
-
-            let isDrawing = false;
-            let selected = null;
-            const candidates = [[0.5, 0.87], [0.07, 0.13], [0.93, 0.13]];
 
             const relativeCoords = ev => {
                 const rect = canvas.getBoundingClientRect();
@@ -101,7 +99,7 @@
                     }
                 }
                 selected = null;
-                draw();
+                requestAnimationFrame(draw);
             };
 
             document.addEventListener('mouseup', dragEnd);
@@ -113,7 +111,7 @@
                 if (!selected || x < 0 || x > 1 || y < 0 || y > 1) return;
                 selected[0] = x;
                 selected[1] = y;
-                draw(0.016); // 16 ms, to hit 60 FPS animation.
+                requestAnimationFrame(draw);
             }
 
             canvas.addEventListener('mousemove', moveCandidate);
@@ -122,7 +120,7 @@
                 moveCandidate(ev.touches[0]);
             });
 
-            draw();
+            requestAnimationFrame(draw);
         }
 
         async function reloadOnChange(createdAt = null) {
