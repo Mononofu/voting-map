@@ -159,16 +159,7 @@ pub fn max_candidates() -> usize {
     CANDIDATE_COLORS.len()
 }
 
-pub fn election(size: i32, candidates: &[Point]) -> Vec<u8> {
-    let sigma = 0.5f32;
-    let num_sigma = 3.0;
-    // The vote map is [0; 1], so we need to compute votes in [-num_sigma * sigma; 1 + num_sigma * sigma].
-    let range = (size as f32 * sigma * num_sigma) as i32;
-    let start = -range;
-    let end = size + range;
-
-    log!("Plotting from {} to {}", start, end);
-
+fn compute_votes(size: i32, start: i32, end: i32, candidates: &[Point]) -> Vec<u8> {
     let padded_size = (end - start) as i32;
     let mut results = vec![0u8; padded_size.pow(2) as usize];
 
@@ -184,6 +175,21 @@ pub fn election(size: i32, candidates: &[Point]) -> Vec<u8> {
         }
     }
 
+    results
+}
+
+pub fn election(size: i32, candidates: &[Point]) -> Vec<u8> {
+    let sigma = 0.5f32;
+    let num_sigma = 3.0;
+
+    // The vote map is [0; 1], so we need to compute votes in [-num_sigma * sigma; 1 + num_sigma * sigma].
+    let range = (size as f32 * sigma * num_sigma) as i32;
+    let start = -range;
+    let end = size + range;
+
+    // Compute voting results at each individual point.
+    let results = compute_votes(size, start, end, &candidates);
+
     // Neighbourhood weighting.
     let mut sample_locations = vec![];
     for x in -range..range {
@@ -192,6 +198,7 @@ pub fn election(size: i32, candidates: &[Point]) -> Vec<u8> {
     }
 
     // Sum up all the votes for the neighbour of each point.
+    let padded_size = (end - start) as i32;
     let mut num_votes = vec![0f32; size.pow(2) as usize * candidates.len()];
     for x in 0..size {
         for y in start..end {
