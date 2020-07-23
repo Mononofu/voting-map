@@ -18,7 +18,6 @@ struct Color {
 }
 
 impl Color {
-    const BLACK: Color = Color { r: 0, g: 0, b: 0 };
     const RED: Color = Color { r: 255, g: 0, b: 0 };
     const GREEN: Color = Color { r: 0, g: 255, b: 0 };
     const BLUE: Color = Color { r: 0, g: 0, b: 255 };
@@ -39,25 +38,6 @@ pub struct Point {
     y: f32,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-pub struct Vec2 {
-    dx: f32,
-    dy: f32,
-}
-
-impl Vec2 {
-    fn new(dx: f32, dy: f32) -> Vec2 {
-        Vec2 { dx, dy }
-    }
-}
-
-impl std::ops::Mul<f32> for Vec2 {
-    type Output = Vec2;
-    fn mul(self, rhs: f32) -> Vec2 {
-        Vec2::new(self.dx * rhs, self.dy * rhs)
-    }
-}
-
 impl Point {
     pub fn new(x: f32, y: f32) -> Point {
         Point { x, y }
@@ -65,20 +45,6 @@ impl Point {
 
     fn l2_square(&self, other: &Point) -> f32 {
         (self.x - other.x).powi(2) + (self.y - other.y).powi(2)
-    }
-}
-
-impl std::ops::Add<Vec2> for Point {
-    type Output = Point;
-    fn add(self, rhs: Vec2) -> Point {
-        Point::new(self.x + rhs.dx, self.y + rhs.dy)
-    }
-}
-
-impl std::ops::Sub<Point> for Point {
-    type Output = Vec2;
-    fn sub(self, rhs: Point) -> Vec2 {
-        Vec2::new(self.x - rhs.x, self.y - rhs.y)
     }
 }
 
