@@ -19,6 +19,8 @@
             // Make the canvas square.
             const canvas = document.getElementById('vote-map');
             canvas.style.height = canvas.clientWidth + 'px';
+            canvas.height = canvas.clientHeight;
+            canvas.width = canvas.clientWidth;
 
             let isDrawing = false;
             let selected = null;
@@ -26,13 +28,9 @@
             // const candidates = [[0.12, 0.28], [0.85, 0.7], [0.39, 0.28], [0.97, 0.14]];
             const candidates = [[0.5, 0.87], [0.07, 0.13], [0.93, 0.13]];
 
-            const draw = () => {
+            const draw = async () => {
                 // Low quality but fast preview during dragging, higher quality rendering otherwise.
                 const mapSize = selected == null ? 128 : 64;
-
-                // Set the rendered size, as opposed to the size that the element is scaled to. 
-                canvas.height = mapSize;
-                canvas.width = mapSize;
 
                 const ctx = canvas.getContext('2d');
                 try {
@@ -43,11 +41,13 @@
                     }
 
                     const data = render(mapSize, candidateCoords);
-                    const image = new ImageData(Uint8ClampedArray.from(data), mapSize, mapSize);
-                    ctx.putImageData(image, 0, 0);
+                    const imageData = new ImageData(Uint8ClampedArray.from(data), mapSize, mapSize);
+                    const bitmap = await createImageBitmap(imageData);
+                    ctx.drawImage(bitmap, 0, 0, canvas.clientWidth, canvas.clientHeight);
                     for (const [x, y] of candidates) {
                         ctx.beginPath();
-                        ctx.arc(x * mapSize, y * mapSize, 5, 0, 2 * Math.PI);
+                        ctx.lineWidth = canvas.clientWidth / 196;
+                        ctx.arc(x * canvas.clientWidth, y * canvas.clientHeight, canvas.clientWidth / 64, 0, 2 * Math.PI);
                         ctx.stroke();
                     }
                 } catch (e) {
