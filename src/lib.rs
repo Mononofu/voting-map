@@ -79,7 +79,11 @@ fn normal_pdf(mean: f32, sigma: f32, x: f32) -> f32 {
         * (-1f32 / 2f32 * ((x - mean) / sigma).powi(2)).exp()
 }
 
-fn select_candidate(p: Point, candidates: &[Point]) -> u8 {
+fn vote_dummy(_p: Point, _candidates: &[Point]) -> u8 {
+    0
+}
+
+fn vote_plurality(p: Point, candidates: &[Point]) -> u8 {
     let mut closest_i = 100000000;
     let mut closest_dist = std::f32::MAX;
     for (i, c) in candidates.iter().enumerate() {
@@ -101,14 +105,18 @@ const CANDIDATE_COLORS: [Color; 5] = [
 ];
 
 #[wasm_bindgen]
-pub fn render(size: usize, candidate_coords: Vec<f32>) -> Result<Vec<u8>, JsValue> {
+pub fn render(
+    size: usize,
+    candidate_coords: Vec<f32>,
+    election_method: &str,
+) -> Result<Vec<u8>, JsValue> {
     utils::set_panic_hook();
 
     let mut candidates = vec![];
     for i in (0..candidate_coords.len()).step_by(2) {
         candidates.push(Point::new(candidate_coords[i], candidate_coords[i + 1]));
     }
-    let winners = election(size as i32, &candidates);
+    let winners = election(size as i32, &candidates, election_method);
     let mut image = Image::new(size);
     for x in 0..size {
         for y in 0..size {
@@ -125,7 +133,16 @@ pub fn max_candidates() -> usize {
     CANDIDATE_COLORS.len()
 }
 
-fn compute_votes(size: i32, start: i32, end: i32, candidates: &[Point]) -> Vec<u8> {
+fn compute_votes<F>(
+    size: i32,
+    start: i32,
+    end: i32,
+    candidates: &[Point],
+    voting_method: F,
+) -> Vec<u8>
+where
+    F: Fn(Point, &[Point]) -> u8,
+{
     let padded_size = (end - start) as i32;
     let mut results = vec![0u8; padded_size.pow(2) as usize];
 
@@ -133,7 +150,7 @@ fn compute_votes(size: i32, start: i32, end: i32, candidates: &[Point]) -> Vec<u
     for x in start..end {
         for y in start..end {
             let at = Point::new(x as f32 / size as f32, y as f32 / size as f32);
-            let winner = select_candidate(at, &candidates);
+            let winner = voting_method(at, &candidates);
 
             let i = x - start;
             let j = y - start;
@@ -144,7 +161,7 @@ fn compute_votes(size: i32, start: i32, end: i32, candidates: &[Point]) -> Vec<u
     results
 }
 
-pub fn election(size: i32, candidates: &[Point]) -> Vec<u8> {
+pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u8> {
     let sigma = 0.5f32;
     let num_sigma = 3.0;
 
@@ -154,7 +171,10 @@ pub fn election(size: i32, candidates: &[Point]) -> Vec<u8> {
     let end = size + range;
 
     // Compute voting results at each individual point.
-    let results = compute_votes(size, start, end, &candidates);
+    let results = match election_method {
+        "plurality" => compute_votes(size, start, end, &candidates, vote_plurality),
+        _ => compute_votes(size, start, end, &candidates, vote_dummy),
+    };
 
     // Neighbourhood weighting.
     let mut sample_locations = vec![];

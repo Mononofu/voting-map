@@ -4,11 +4,23 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello wasm-pack!</title>
+    <title>Voting Simulation</title>
 </head>
 
 <body>
+    <label for="election_method">Election method:</label>
+    <select id="election_method" name="election_method">
+        <option value="plurality">Plurality (first past the post)</option>
+        <option value="approval">Approval</option>
+        <option value="borda">Borda</option>
+        <option value="condorcet">Condorcet</option>
+        <option value="hare">Hare (instant runoff)</option>
+    </select>
+
+    <br><br>
+
     <canvas id="vote-map" style="width: 100%; max-width: 512px;"></canvas>
+
     <script type="module">
         import init, { render, max_candidates } from './pkg/voting_map.js';
 
@@ -40,7 +52,9 @@
                         candidateCoords.push(y);
                     }
 
-                    const data = render(mapSize, candidateCoords);
+                    const electionMethod = document.getElementById('election_method').value;
+
+                    const data = render(mapSize, candidateCoords, electionMethod);
                     const imageData = new ImageData(Uint8ClampedArray.from(data), mapSize, mapSize);
                     const bitmap = await createImageBitmap(imageData);
                     ctx.drawImage(bitmap, 0, 0, canvas.clientWidth, canvas.clientHeight);
