@@ -27,7 +27,9 @@
             const candidates = [[0.5, 0.87], [0.07, 0.13], [0.93, 0.13]];
 
             const draw = () => {
+                // Low quality but fast preview during dragging, higher quality rendering otherwise.
                 const mapSize = selected == null ? 128 : 64;
+
                 // Set the rendered size, as opposed to the size that the element is scaled to. 
                 canvas.height = mapSize;
                 canvas.width = mapSize;
@@ -91,7 +93,7 @@
             const dragEnd = () => {
                 if (selected != null) {
                     const [x, y] = lastPos;
-                    if (x < 0 || x > 1 || y < 0 || y > 1) {
+                    if (x <= 0 || x >= 1 || y <= 0 || y >= 1) {
                         // Out of bounds, remove the candidate.
                         const i = candidates.indexOf(selected);
                         candidates.splice(i, 1);
@@ -102,7 +104,10 @@
                 requestAnimationFrame(draw);
             };
 
-            document.addEventListener('mouseup', dragEnd);
+            document.addEventListener('mouseup', ev => {
+                lastPos = relativeCoords(ev);
+                dragEnd();
+            });
             document.addEventListener('touchend', dragEnd);
 
             const moveCandidate = ev => {
