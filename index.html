@@ -17,12 +17,25 @@
         <option value="hare">Hare (instant runoff)</option>
     </select>
 
+    <!-- Voter positions from http://zesty.ca/voting/sim/ -->
+    <label for="candidate_distribution">Candidate distribution:</label>
+    <select id="candidate_distribution" name="candidate_distribution">
+        <option value="0.50,0.99,0.07,0.25,0.93,0.25">3 - Equilateral</option>
+        <option value="0.07,0.17,0.49,0.01,0.41,0.02">3 - Squeezed Out</option>
+        <option value="0.93,0.49,0.79,0.42,0.27,0.45">3 - Vote Splitting</option>
+        <option value="0.54,0.47,0.77,0.64,0.13,0.10">3 - Nonmonotonicity</option>
+        <option value="0.30,0.30,0.30,0.70,0.70,0.70,0.70,0.30">4 - Square</option>
+        <option value="0.12,0.28,0.39,0.28,0.97,0.14,0.85,0.70">4 - Shattered</option>
+        <option value="0.24,0.25,0.04,0.64,0.85,0.55,0.19,0.62">4 - Disjoint</option>
+        <option value="0.40,0.57,0.05,0.62,0.91,0.70,0.16,0.54">4 - Nonmonotonicity</option>
+    </select>
+
     <br><br>
 
     <canvas id="vote-map" style="width: 100%; max-width: 512px;"></canvas>
 
     <script type="module">
-        import init, { render, max_candidates } from './pkg/voting_map.js';
+        import init, { render, max_candidates, candidate_color } from './pkg/voting_map.js';
 
         async function main() {
             await init();
@@ -36,9 +49,23 @@
 
             let isDrawing = false;
             let selected = null;
-            // const candidates = [[0.4, 0.87], [0.6, 0.87], [0.07, 0.13], [0.93, 0.13]];
-            // const candidates = [[0.12, 0.28], [0.85, 0.7], [0.39, 0.28], [0.97, 0.14]];
-            const candidates = [[0.5, 0.87], [0.07, 0.13], [0.93, 0.13]];
+
+            const candidates = [];
+            const setCandidates = elem => {
+                const coords = elem.value.split(',').map(c => Number(c));
+                candidates.length = 0;
+                for (let i = 0; i < coords.length; i += 2) {
+                    // Scale to [-0.25, 1.25] coordinates and flip y-axis to match http://zesty.ca/voting/sim/
+                    candidates.push([(coords[i] + 0.25) / 1.5, [(1 - coords[i + 1] + 0.25) / 1.5]]);
+                }
+                console.log('set candidates', candidates);
+            };
+
+            const candidateSelector = document.getElementById('candidate_distribution');
+            candidateSelector.addEventListener('change', ev => {
+                setCandidates(ev.srcElement);
+            });
+            setCandidates(candidateSelector);
 
             const draw = async () => {
                 // Low quality but fast preview during dragging, higher quality rendering otherwise.
@@ -58,11 +85,15 @@
                     const imageData = new ImageData(Uint8ClampedArray.from(data), mapSize, mapSize);
                     const bitmap = await createImageBitmap(imageData);
                     ctx.drawImage(bitmap, 0, 0, canvas.clientWidth, canvas.clientHeight);
-                    for (const [x, y] of candidates) {
+                    for (let i = 0; i < candidates.length; ++i) {
+                        const [x, y] = candidates[i];
+
                         ctx.beginPath();
                         ctx.lineWidth = canvas.clientWidth / 196;
                         ctx.arc(x * canvas.clientWidth, y * canvas.clientHeight, canvas.clientWidth / 64, 0, 2 * Math.PI);
                         ctx.stroke();
+                        ctx.fillStyle = candidate_color(i);
+                        ctx.fill();
                     }
                 } catch (e) {
                     console.error(e);
