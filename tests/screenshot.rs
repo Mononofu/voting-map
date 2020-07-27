@@ -11,7 +11,7 @@ fn assert_image(name: &str, candidate: &image::DynamicImage) {
 
     let golden_path = format!("testdata/{}.png", name);
 
-    candidate.save(&golden_path);
+    // candidate.save(&golden_path);
 
     let golden = image::open(&golden_path);
     assert!(
@@ -29,18 +29,21 @@ fn assert_image(name: &str, candidate: &image::DynamicImage) {
     }
 
     // Images don't match, create a diff to make comparisons easier.
+    let mut num_diffs = 0;
     let diff = image::ImageBuffer::from_fn(golden.width(), golden.height(), |x, y| {
         let got = candidate.get_pixel(x, y);
         let want = golden.get_pixel(x, y);
         if got == want {
             image::Rgba([0, 0, 0, 0])
         } else {
+            num_diffs += 1;
             got
         }
     });
     image::DynamicImage::ImageRgba8(diff)
         .save(format!("test_output/{}_diff.png", name))
         .expect("failed to write diff");
+    panic!("Image differs in {} pixels", num_diffs);
 }
 
 fn get_candidates(name: &str) -> Vec<Point> {
