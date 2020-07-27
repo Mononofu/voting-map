@@ -11,8 +11,8 @@ bench = false
 [features]
 debug_logging = []
 default = [
- # "console_error_panic_hook",
- "debug_logging"
+ "console_error_panic_hook",
+  "debug_logging"
 ]
 
 [dependencies]
@@ -33,6 +33,7 @@ features = [
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
 criterion = "0.3"
+image = "0.23"
 
 [[bench]]
 name = "vote"
@@ -40,9 +41,10 @@ harness = false
 
 [profile.release]
 debug = true
+lto = true
 
 [package.metadata.wasm-pack.profile.release] 
-wasm-opt = ['-O4']
+# wasm-opt = ['-O4']
 # Enable for profiling.
-# wasm-opt = ['-O4', '-g']
+wasm-opt = ['-O4', '-g']
 

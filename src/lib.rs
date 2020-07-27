@@ -11,22 +11,22 @@ macro_rules! log {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
 impl Color {
-    const RED: Color = Color { r: 255, g: 0, b: 0 };
-    const GREEN: Color = Color { r: 0, g: 255, b: 0 };
-    const BLUE: Color = Color { r: 0, g: 0, b: 255 };
-    const YELLOW: Color = Color {
+    pub const RED: Color = Color { r: 255, g: 0, b: 0 };
+    pub const GREEN: Color = Color { r: 0, g: 255, b: 0 };
+    pub const BLUE: Color = Color { r: 0, g: 0, b: 255 };
+    pub const YELLOW: Color = Color {
         r: 255,
         g: 255,
         b: 0,
     };
-    const PINK: Color = Color {
+    pub const PINK: Color = Color {
         r: 255,
         g: 20,
         b: 147,
@@ -34,12 +34,12 @@ impl Color {
 }
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Point {
-    x: f32,
-    y: f32,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl Point {
-    pub fn new(x: f32, y: f32) -> Point {
+    pub const fn new(x: f32, y: f32) -> Point {
         Point { x, y }
     }
 
@@ -138,7 +138,7 @@ fn min_vote_candidate(votes: &[f32]) -> usize {
         .unwrap()
 }
 
-const CANDIDATE_COLORS: [Color; 5] = [
+pub const CANDIDATE_COLORS: [Color; 5] = [
     Color::RED,
     Color::GREEN,
     Color::BLUE,
