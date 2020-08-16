@@ -261,7 +261,7 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
     let padded_size = (end - start) as i32;
 
     if election_method == "hare" {
-        let mut winners = vec![255; size.pow(2) as usize];
+        let mut winners = vec![4; size.pow(2) as usize];
 
         for x in 0..size {
             for y in 0..size {
@@ -283,7 +283,7 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
                             let mut best_rank = 255;
                             for c in 0..candidates.len() {
                                 let rank = results[offset + c];
-                                if !eliminated[c] && rank < best_rank {
+                                if rank < best_rank && !eliminated[c] {
                                     best_rank = rank;
                                     winner = c;
                                 }
@@ -299,9 +299,19 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
                     if votes[maybe_winner] > 0.5 * vote_sum {
                         // If one candidate has more than half the ballots, that candidate wins.
                         winners[(x * size + y) as usize] = maybe_winner as u8;
+                        break;
                     } else {
                         // Otherwise, the candidate with the fewest ballots is eliminated.
-                        eliminated[min_vote_candidate(&votes)] = true;
+                        let mut worst_candidate = 255;
+                        let mut min_votes = 1e9;
+                        for c in 0..candidates.len() {
+                            let v = votes[c];
+                            if v < min_votes && !eliminated[c] {
+                                min_votes = v;
+                                worst_candidate = c;
+                            }
+                        }
+                        eliminated[worst_candidate] = true;
                     }
                 }
             }

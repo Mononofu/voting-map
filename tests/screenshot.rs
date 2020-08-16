@@ -11,7 +11,7 @@ fn assert_image(name: &str, candidate: &image::DynamicImage) {
 
     let golden_path = format!("testdata/{}.png", name);
 
-    // candidate.save(&golden_path);
+    candidate.save(&golden_path);
 
     let golden = image::open(&golden_path);
     assert!(
@@ -70,6 +70,34 @@ fn get_candidates(name: &str) -> Vec<Point> {
             Point::new(0.54, 0.47),
             Point::new(0.77, 0.64),
             Point::new(0.13, 0.10),
+        ]
+    } else if name == "square" {
+        vec![
+            Point::new(0.3, 0.3),
+            Point::new(0.3, 0.7),
+            Point::new(0.7, 0.7),
+            Point::new(0.7, 0.3),
+        ]
+    } else if name == "shattered" {
+        vec![
+            Point::new(0.12, 0.28),
+            Point::new(0.39, 0.28),
+            Point::new(0.97, 0.14),
+            Point::new(0.85, 0.70),
+        ]
+    } else if name == "disjoint" {
+        vec![
+            Point::new(0.24, 0.25),
+            Point::new(0.04, 0.64),
+            Point::new(0.85, 0.55),
+            Point::new(0.19, 0.62),
+        ]
+    } else if name == "nonmonotonicity" {
+        vec![
+            Point::new(0.4, 0.57),
+            Point::new(0.05, 0.62),
+            Point::new(0.91, 0.7),
+            Point::new(0.16, 0.54),
         ]
     } else {
         panic!("unknown candidate set: {}", name);
@@ -174,4 +202,24 @@ fn hare_split() {
 #[test]
 fn hare_nonmonotonic() {
     assert_election("hare", "nonmonotonic", 64);
+}
+
+#[test]
+fn hare_square() {
+    assert_election("hare", "square", 96);
+}
+
+#[test]
+fn hare_shattered() {
+    assert_election("hare", "shattered", 96);
+}
+
+#[test]
+fn hare_disjoint() {
+    assert_election("hare", "disjoint", 96);
+}
+
+#[test]
+fn hare_nonmonotonicity() {
+    assert_election("hare", "nonmonotonicity", 96);
 }
