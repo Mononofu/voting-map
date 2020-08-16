@@ -77,7 +77,7 @@
                 if (!dirty) return;
 
                 // Low quality but fast preview during dragging, higher quality rendering otherwise.
-                const mapSize = selected == null ? 128 : 64;
+                let mapSize = selected == null ? 128 : 64;
 
                 const ctx = canvas.getContext('2d');
                 try {
@@ -88,6 +88,9 @@
                     }
 
                     const electionMethod = document.getElementById('election_method').value;
+                    if (electionMethod === 'hare') {
+                        mapSize /= 3;
+                    }
 
                     const data = render(mapSize, candidateCoords, electionMethod);
                     const imageData = new ImageData(Uint8ClampedArray.from(data), mapSize, mapSize);

@@ -258,46 +258,96 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
         sample_locations.push((x, p));
     }
 
-    // Sum up all the votes for the neighbour of each point.
     let padded_size = (end - start) as i32;
-    let mut num_votes = vec![0f32; size.pow(2) as usize * candidates.len()];
-    for x in 0..size {
-        for y in start..end {
-            // Sum up all the votes along the x-neighbourhood.
-            let mut line_votes = vec![0f32; candidates.len()];
-            for (dx, p) in sample_locations.iter() {
-                let i = x + dx - start;
-                let j = y - start;
-                let offset = ((i * padded_size + j) as usize) * candidates.len();
-                for c in 0..candidates.len() {
-                    line_votes[c] += results[offset + c] as f32 * p;
-                }
-            }
 
-            // Add the summed votes to all points with the same x coordinate,
-            // weighted by the distance along the y-axis.
-            for (dy, p) in sample_locations.iter() {
-                let yp = y + dy;
-                if yp >= 0 && yp < size {
-                    for i in 0..candidates.len() {
-                        num_votes[((x * size) + yp) as usize * candidates.len() + i] +=
-                            line_votes[i] * p;
+    if election_method == "hare" {
+        let mut winners = vec![255; size.pow(2) as usize];
+
+        for x in 0..size {
+            for y in 0..size {
+                let mut eliminated = vec![false; candidates.len()];
+
+                for _ in 0..candidates.len() {
+                    let mut votes = vec![0f32; candidates.len()];
+
+                    // Count how many times each candidate that hasn't been eliminated is ranked first.
+                    for (dx, xp) in sample_locations.iter() {
+                        let i = x + dx - start;
+                        for (dy, yp) in sample_locations.iter() {
+                            let j = y + dy - start;
+
+                            let offset = ((i * padded_size + j) as usize) * candidates.len();
+
+                            // Pick the best ranked candidate that hasn't been eliminated yet.
+                            let mut winner = 0;
+                            let mut best_rank = 255;
+                            for c in 0..candidates.len() {
+                                let rank = results[offset + c];
+                                if !eliminated[c] && rank < best_rank {
+                                    best_rank = rank;
+                                    winner = c;
+                                }
+                            }
+
+                            votes[winner] += xp * yp;
+                        }
+                    }
+
+                    // Check if we have a winner.
+                    let maybe_winner = max_vote_candidate(&votes);
+                    let vote_sum: f32 = votes.iter().sum();
+                    if votes[maybe_winner] > 0.5 * vote_sum {
+                        // If one candidate has more than half the ballots, that candidate wins.
+                        winners[(x * size + y) as usize] = maybe_winner as u8;
+                    } else {
+                        // Otherwise, the candidate with the fewest ballots is eliminated.
+                        eliminated[min_vote_candidate(&votes)] = true;
                     }
                 }
             }
         }
-    }
 
-    // Select the winner of the election for each point.
-    match election_method {
-        "plurality" | "approval" => {
-            declare_winner(size, &num_votes, candidates, max_vote_candidate)
+        winners
+    } else {
+        // Sum up all the votes for the neighbour of each point.
+        let mut num_votes = vec![0f32; size.pow(2) as usize * candidates.len()];
+        for x in 0..size {
+            for y in start..end {
+                // Sum up all the votes along the x-neighbourhood.
+                let mut line_votes = vec![0f32; candidates.len()];
+                for (dx, p) in sample_locations.iter() {
+                    let i = x + dx - start;
+                    let j = y - start;
+                    let offset = ((i * padded_size + j) as usize) * candidates.len();
+                    for c in 0..candidates.len() {
+                        line_votes[c] += results[offset + c] as f32 * p;
+                    }
+                }
+
+                // Add the summed votes to all points with the same x coordinate,
+                // weighted by the distance along the y-axis.
+                for (dy, p) in sample_locations.iter() {
+                    let yp = y + dy;
+                    if yp >= 0 && yp < size {
+                        for i in 0..candidates.len() {
+                            num_votes[((x * size) + yp) as usize * candidates.len() + i] +=
+                                line_votes[i] * p;
+                        }
+                    }
+                }
+            }
         }
-        "borda" => declare_winner(size, &num_votes, candidates, min_vote_candidate),
-        "condorcet" => unimplemented!(
-            "condorcet; must select candidate that would defeat all others one-to-one"
-        ),
-        "hare" => unimplemented!("hare"),
-        _ => unreachable!("unsupported election method {}", election_method),
+
+        // Select the winner of the election for each point.
+        match election_method {
+            "plurality" | "approval" => {
+                declare_winner(size, &num_votes, candidates, max_vote_candidate)
+            }
+            "borda" => declare_winner(size, &num_votes, candidates, min_vote_candidate),
+            "condorcet" => unimplemented!(
+                "condorcet; must select candidate that would defeat all others one-to-one"
+            ),
+            _ => unreachable!("unsupported election method {}", election_method),
+        }
     }
 }
