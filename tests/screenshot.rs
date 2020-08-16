@@ -76,15 +76,13 @@ fn get_candidates(name: &str) -> Vec<Point> {
     }
 }
 
-fn assert_election(method: &str, candidate_name: &str) {
+fn assert_election(method: &str, candidate_name: &str, size: u32) {
     let candidates = get_candidates(candidate_name);
     let mut tranformed = vec![];
     for c in candidates {
         // Scale to [-0.25, 1.25] coordinates and flip y-axis to match http://zesty.ca/voting/sim/
         tranformed.push(Point::new((c.x + 0.25) / 1.5, (1.0 - c.y + 0.25) / 1.5));
     }
-
-    let size = 256;
     let winners = election(size as i32, &tranformed, method);
 
     let got = image::ImageBuffer::from_fn(size, size, |x, y| {
@@ -100,60 +98,80 @@ fn assert_election(method: &str, candidate_name: &str) {
 
 #[test]
 fn plurality_equilateral() {
-    assert_election("plurality", "equilateral");
+    assert_election("plurality", "equilateral", 256);
 }
 
 #[test]
 fn plurality_squeezed() {
-    assert_election("plurality", "squeezed");
+    assert_election("plurality", "squeezed", 256);
 }
 
 #[test]
 fn plurality_split() {
-    assert_election("plurality", "split");
+    assert_election("plurality", "split", 256);
 }
 
 #[test]
 fn plurality_nonmonotonic() {
-    assert_election("plurality", "nonmonotonic");
+    assert_election("plurality", "nonmonotonic", 256);
 }
 
 #[test]
 fn borda_equilateral() {
-    assert_election("borda", "equilateral");
+    assert_election("borda", "equilateral", 256);
 }
 
 #[test]
 fn borda_squeezed() {
-    assert_election("borda", "squeezed");
+    assert_election("borda", "squeezed", 256);
 }
 
 #[test]
 fn borda_split() {
-    assert_election("borda", "split");
+    assert_election("borda", "split", 256);
 }
 
 #[test]
 fn borda_nonmonotonic() {
-    assert_election("borda", "nonmonotonic");
+    assert_election("borda", "nonmonotonic", 256);
 }
 
 #[test]
 fn approval_equilateral() {
-    assert_election("approval", "equilateral");
+    assert_election("approval", "equilateral", 256);
 }
 
 #[test]
 fn approval_squeezed() {
-    assert_election("approval", "squeezed");
+    assert_election("approval", "squeezed", 256);
 }
 
 #[test]
 fn approval_split() {
-    assert_election("approval", "split");
+    assert_election("approval", "split", 256);
 }
 
 #[test]
 fn approval_nonmonotonic() {
-    assert_election("approval", "nonmonotonic");
+    assert_election("approval", "nonmonotonic", 256);
+}
+
+#[test]
+fn hare_equilateral() {
+    assert_election("hare", "equilateral", 64);
+}
+
+#[test]
+fn hare_squeezed() {
+    assert_election("hare", "squeezed", 64);
+}
+
+#[test]
+fn hare_split() {
+    assert_election("hare", "split", 64);
+}
+
+#[test]
+fn hare_nonmonotonic() {
+    assert_election("hare", "nonmonotonic", 64);
 }
