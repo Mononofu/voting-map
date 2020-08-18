@@ -10,11 +10,11 @@
 <body>
     <label for="election_method">Election method:</label>
     <select id="election_method" name="election_method">
+        <option value="hare">Hare (instant runoff)</option>
         <option value="plurality">Plurality (first past the post)</option>
         <option value="approval">Approval</option>
         <option value="borda">Borda</option>
         <option value="condorcet">Condorcet</option>
-        <option value="hare">Hare (instant runoff)</option>
     </select>
 
     <!-- Voter positions from http://zesty.ca/voting/sim/ -->
@@ -89,7 +89,7 @@
 
                     const electionMethod = document.getElementById('election_method').value;
                     if (electionMethod === 'hare') {
-                        mapSize /= 3;
+                        mapSize /= 2;
                     }
 
                     const data = render(mapSize, candidateCoords, electionMethod);

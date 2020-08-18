@@ -10,7 +10,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     ];
 
     let mut group = c.benchmark_group("election");
-    for size in [32].iter() {
+    for size in [64].iter() {
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
             b.iter(|| election(size, &candidates, "hare"))
         });

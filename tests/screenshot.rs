@@ -11,7 +11,7 @@ fn assert_image(name: &str, candidate: &image::DynamicImage) {
 
     let golden_path = format!("testdata/{}.png", name);
 
-    candidate.save(&golden_path);
+    // candidate.save(&golden_path);
 
     let golden = image::open(&golden_path);
     assert!(

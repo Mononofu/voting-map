@@ -234,6 +234,54 @@ where
     winners
 }
 
+fn sum_votes<F>(
+    size: i32,
+    candidates: &[Point],
+    start: i32,
+    end: i32,
+    results: &[u8],
+    sample_locations: &[(i32, f32)],
+    count_votes: F,
+) -> Vec<f32>
+where
+    F: Fn(&mut [f32], &[u8], f32),
+{
+    let padded_size = (end - start) as i32;
+
+    // Sum up all the votes for the neighbour of each point.
+    let mut num_votes = vec![0f32; size.pow(2) as usize * candidates.len()];
+    for x in 0..size {
+        for y in start..end {
+            // Sum up all the votes along the x-neighbourhood.
+            let mut line_votes = vec![0f32; candidates.len()];
+            for (dx, p) in sample_locations.iter() {
+                let i = x + dx - start;
+                let j = y - start;
+                let offset = ((i * padded_size + j) as usize) * candidates.len();
+
+                count_votes(
+                    &mut line_votes,
+                    &results[offset..offset + candidates.len()],
+                    *p,
+                );
+            }
+
+            // Add the summed votes to all points with the same x coordinate,
+            // weighted by the distance along the y-axis.
+            for (dy, p) in sample_locations.iter() {
+                let yp = y + dy;
+                if yp >= 0 && yp < size {
+                    for i in 0..candidates.len() {
+                        num_votes[((x * size) + yp) as usize * candidates.len() + i] +=
+                            line_votes[i] * p;
+                    }
+                }
+            }
+        }
+    }
+    num_votes
+}
+
 pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u8> {
     let sigma = 0.5f32 / 1.5;
     let num_sigma = 3.0;
@@ -258,14 +306,65 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
         sample_locations.push((x, p));
     }
 
-    let padded_size = (end - start) as i32;
+    // Sum up all votes weighted by their neighborhouds.
+    let num_votes = match election_method {
+        "hare" => sum_votes(
+            size,
+            candidates,
+            start,
+            end,
+            &results,
+            &sample_locations,
+            |line_votes, results, p| {
+                let mut winner = 0;
+                let mut best_rank = 255;
+                for c in 0..candidates.len() {
+                    let rank = results[c];
+                    if rank < best_rank {
+                        best_rank = rank;
+                        winner = c;
+                    }
+                }
+                line_votes[winner] += p;
+            },
+        ),
+        _ => sum_votes(
+            size,
+            candidates,
+            start,
+            end,
+            &results,
+            &sample_locations,
+            |line_votes, results, p| {
+                for c in 0..candidates.len() {
+                    line_votes[c] += results[c] as f32 * p;
+                }
+            },
+        ),
+    };
 
     if election_method == "hare" {
-        let mut winners = vec![4; size.pow(2) as usize];
+        let undecided = 255;
+        let mut winners = vec![undecided; size.pow(2) as usize];
 
+        let padded_size = (end - start) as i32;
         for x in 0..size {
             for y in 0..size {
+                // First, check if we already have a majority winner.
+                let vote_i = ((x * size) + y) as usize * candidates.len();
+                let votes = &num_votes[vote_i..vote_i + candidates.len()];
+
+                let maybe_winner = max_vote_candidate(&votes);
+                let vote_sum: f32 = votes.iter().sum();
+                if votes[maybe_winner] >= 0.5 * vote_sum {
+                    // If one candidate has more than half the ballots, that candidate wins.
+                    winners[(x * size + y) as usize] = maybe_winner as u8;
+                    continue;
+                }
+
+                // Otherwise, the candidate with the fewest ballots is eliminated and we vote again.
                 let mut eliminated = vec![false; candidates.len()];
+                eliminated[min_vote_candidate(&votes)] = true;
 
                 for _ in 0..candidates.len() {
                     let mut votes = vec![0f32; candidates.len()];
@@ -296,7 +395,7 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
                     // Check if we have a winner.
                     let maybe_winner = max_vote_candidate(&votes);
                     let vote_sum: f32 = votes.iter().sum();
-                    if votes[maybe_winner] > 0.5 * vote_sum {
+                    if votes[maybe_winner] >= 0.5 * vote_sum {
                         // If one candidate has more than half the ballots, that candidate wins.
                         winners[(x * size + y) as usize] = maybe_winner as u8;
                         break;
@@ -319,35 +418,6 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
 
         winners
     } else {
-        // Sum up all the votes for the neighbour of each point.
-        let mut num_votes = vec![0f32; size.pow(2) as usize * candidates.len()];
-        for x in 0..size {
-            for y in start..end {
-                // Sum up all the votes along the x-neighbourhood.
-                let mut line_votes = vec![0f32; candidates.len()];
-                for (dx, p) in sample_locations.iter() {
-                    let i = x + dx - start;
-                    let j = y - start;
-                    let offset = ((i * padded_size + j) as usize) * candidates.len();
-                    for c in 0..candidates.len() {
-                        line_votes[c] += results[offset + c] as f32 * p;
-                    }
-                }
-
-                // Add the summed votes to all points with the same x coordinate,
-                // weighted by the distance along the y-axis.
-                for (dy, p) in sample_locations.iter() {
-                    let yp = y + dy;
-                    if yp >= 0 && yp < size {
-                        for i in 0..candidates.len() {
-                            num_votes[((x * size) + yp) as usize * candidates.len() + i] +=
-                                line_votes[i] * p;
-                        }
-                    }
-                }
-            }
-        }
-
         // Select the winner of the election for each point.
         match election_method {
             "plurality" | "approval" => {
