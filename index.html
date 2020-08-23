@@ -10,17 +10,15 @@
 <body>
     <label for="election_method">Election method:</label>
     <select id="election_method" name="election_method">
-        <option value="hare">Hare (instant runoff)</option>
         <option value="plurality">Plurality (first past the post)</option>
         <option value="approval">Approval</option>
         <option value="borda">Borda</option>
-        <option value="condorcet">Condorcet</option>
+        <option value="hare">Hare (instant runoff)</option>
     </select>
 
     <!-- Voter positions from http://zesty.ca/voting/sim/ -->
     <label for="candidate_distribution">Candidate distribution:</label>
     <select id="candidate_distribution" name="candidate_distribution">
-        <option value="0.40,0.57,0.05,0.62,0.91,0.70,0.16,0.54">4 - Nonmonotonicity</option>
         <option value="0.50,0.99,0.07,0.25,0.93,0.25">3 - Equilateral</option>
         <option value="0.07,0.17,0.49,0.01,0.41,0.02">3 - Squeezed Out</option>
         <option value="0.93,0.49,0.79,0.42,0.27,0.45">3 - Vote Splitting</option>
@@ -28,6 +26,7 @@
         <option value="0.30,0.30,0.30,0.70,0.70,0.70,0.70,0.30">4 - Square</option>
         <option value="0.12,0.28,0.39,0.28,0.97,0.14,0.85,0.70">4 - Shattered</option>
         <option value="0.24,0.25,0.04,0.64,0.85,0.55,0.19,0.62">4 - Disjoint</option>
+        <option value="0.40,0.57,0.05,0.62,0.91,0.70,0.16,0.54">4 - Nonmonotonicity</option>
     </select>
 
     <button id="high-quality-btn">Render High Quality</button>
@@ -51,7 +50,6 @@
 
             let isDrawing = false;
             let selected = null;
-            let dirty = true;
 
             const candidates = [];
             const setCandidates = elem => {
@@ -62,7 +60,7 @@
                     candidates.push([(coords[i] + 0.25) / 1.5, [(1 - coords[i + 1] + 0.25) / 1.5]]);
                 }
                 console.log('set candidates', candidates);
-                dirty = true;
+                requestAnimationFrame(() => draw());
             };
 
             const candidateSelector = document.getElementById('candidate_distribution');
@@ -72,17 +70,20 @@
             setCandidates(candidateSelector);
 
             document.getElementById('election_method').addEventListener('change', ev => {
-                dirty = true;
+                requestAnimationFrame(() => draw());
             });
 
-            document.getElementById('high-quality-btn').addEventListener('click', ev => {
-                dirty = true;
-                draw(256);
+            const highQualityBtn = document.getElementById('high-quality-btn');
+            highQualityBtn.addEventListener('click', async ev => {
+                highQualityBtn.disabled = true;
+
+                setTimeout(async () => {
+                    await draw(256);
+                    highQualityBtn.disabled = false;
+                }, 0);
             });
 
             const draw = async (mapSize = null) => {
-                if (!dirty) return;
-
                 // Low quality but fast preview during dragging, higher quality rendering otherwise.
                 if (mapSize == null) mapSize = selected == null ? 128 : 64;
 
@@ -96,8 +97,10 @@
 
                     const electionMethod = document.getElementById('election_method').value;
                     if (electionMethod === 'hare') {
-                        mapSize /= 2;
+                        // Hare is slow, so render at alower resolution than other methods.
+                        mapSize /= 1.5;
                     }
+                    console.log('rendering ', electionMethod, ' at ', mapSize);
 
                     const data = render(mapSize, candidateCoords, electionMethod);
                     const imageData = new ImageData(Uint8ClampedArray.from(data), mapSize, mapSize);
@@ -116,8 +119,6 @@
                 } catch (e) {
                     console.error(e);
                 }
-
-                dirty = false;
             }
 
             const relativeCoords = ev => {
@@ -156,6 +157,7 @@
             });
 
             const dragEnd = () => {
+                let dirty = false;
                 if (selected != null) {
                     const [x, y] = lastPos;
                     if (x <= 0 || x >= 1 || y <= 0 || y >= 1) {
@@ -167,7 +169,7 @@
                     dirty = true;
                 }
                 selected = null;
-                requestAnimationFrame(() => draw());
+                if (dirty) requestAnimationFrame(() => draw());
             };
 
             document.addEventListener('mouseup', ev => {
@@ -182,7 +184,6 @@
                 if (!selected || x < 0 || x > 1 || y < 0 || y > 1) return;
                 selected[0] = x;
                 selected[1] = y;
-                dirty = true;
                 requestAnimationFrame(() => draw());
             }
 
