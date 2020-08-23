@@ -57,7 +57,7 @@
                 candidates.length = 0;
                 for (let i = 0; i < coords.length; i += 2) {
                     // Scale to [-0.25, 1.25] coordinates and flip y-axis to match http://zesty.ca/voting/sim/
-                    candidates.push([(coords[i] + 0.25) / 1.5, [(1 - coords[i + 1] + 0.25) / 1.5]]);
+                    candidates.push([(coords[i] + 0.25) / 1.5, (1 - coords[i + 1] + 0.25) / 1.5]);
                 }
                 console.log('set candidates', candidates);
                 requestAnimationFrame(() => draw());
