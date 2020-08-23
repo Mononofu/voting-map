@@ -186,40 +186,40 @@ fn approval_nonmonotonic() {
 
 #[test]
 fn hare_equilateral() {
-    assert_election("hare", "equilateral", 64);
+    assert_election("hare", "equilateral", 128);
 }
 
 #[test]
 fn hare_squeezed() {
-    assert_election("hare", "squeezed", 64);
+    assert_election("hare", "squeezed", 128);
 }
 
 #[test]
 fn hare_split() {
-    assert_election("hare", "split", 64);
+    assert_election("hare", "split", 128);
 }
 
 #[test]
 fn hare_nonmonotonic() {
-    assert_election("hare", "nonmonotonic", 64);
+    assert_election("hare", "nonmonotonic", 128);
 }
 
 #[test]
 fn hare_square() {
-    assert_election("hare", "square", 96);
+    assert_election("hare", "square", 128);
 }
 
 #[test]
 fn hare_shattered() {
-    assert_election("hare", "shattered", 96);
+    assert_election("hare", "shattered", 128);
 }
 
 #[test]
 fn hare_disjoint() {
-    assert_election("hare", "disjoint", 96);
+    assert_election("hare", "disjoint", 128);
 }
 
 #[test]
 fn hare_nonmonotonicity() {
-    assert_election("hare", "nonmonotonicity", 96);
+    assert_election("hare", "nonmonotonicity", 128);
 }
