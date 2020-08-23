@@ -1,3 +1,9 @@
+## Interactive Voting Simulator
+
+A voting simulator based on Ka-Ping Yee's [blog post about election methods](http://zesty.ca/voting/sim/). 
+
+You can try the live version on my blog: [Interactive Voting System Simulator](http://www.furidamu.org/blog/2020/08/23/interactive-voting-system-simulator)
+
 ## Development
 
 ```sh
