@@ -347,7 +347,7 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
         let undecided = 255;
         let mut winners = vec![undecided; size.pow(2) as usize];
 
-        let padded_size = (end - start) as i32;
+        let mut votes_with_eliminated_candidates = vec![None; 2usize.pow(candidates.len() as u32)];
         for x in 0..size {
             for y in 0..size {
                 // First, check if we already have a majority winner.
@@ -363,34 +363,33 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
                 }
 
                 // Otherwise, the candidate with the fewest ballots is eliminated and we vote again.
-                let mut eliminated = vec![false; candidates.len()];
-                eliminated[min_vote_candidate(&votes)] = true;
+                let mut eliminated = 1 << min_vote_candidate(&votes);
 
                 for _ in 0..candidates.len() {
-                    let mut votes = vec![0f32; candidates.len()];
-
-                    // Count how many times each candidate that hasn't been eliminated is ranked first.
-                    for (dx, xp) in sample_locations.iter() {
-                        let i = x + dx - start;
-                        for (dy, yp) in sample_locations.iter() {
-                            let j = y + dy - start;
-
-                            let offset = ((i * padded_size + j) as usize) * candidates.len();
-
-                            // Pick the best ranked candidate that hasn't been eliminated yet.
-                            let mut winner = 0;
-                            let mut best_rank = 255;
-                            for c in 0..candidates.len() {
-                                let rank = results[offset + c];
-                                if rank < best_rank && !eliminated[c] {
-                                    best_rank = rank;
-                                    winner = c;
-                                }
-                            }
-
-                            votes[winner] += xp * yp;
-                        }
-                    }
+                    let num_votes = votes_with_eliminated_candidates[eliminated]
+                        .get_or_insert_with(|| {
+                            sum_votes(
+                                size,
+                                candidates,
+                                start,
+                                end,
+                                &results,
+                                &sample_locations,
+                                |line_votes, results, p| {
+                                    let mut winner = 0;
+                                    let mut best_rank = 255;
+                                    for c in 0..candidates.len() {
+                                        let rank = results[c];
+                                        if rank < best_rank && (1 << c) & eliminated == 0 {
+                                            best_rank = rank;
+                                            winner = c;
+                                        }
+                                    }
+                                    line_votes[winner] += p;
+                                },
+                            )
+                        });
+                    let votes = &num_votes[vote_i..vote_i + candidates.len()];
 
                     // Check if we have a winner.
                     let maybe_winner = max_vote_candidate(&votes);
@@ -405,12 +404,12 @@ pub fn election(size: i32, candidates: &[Point], election_method: &str) -> Vec<u
                         let mut min_votes = 1e9;
                         for c in 0..candidates.len() {
                             let v = votes[c];
-                            if v < min_votes && !eliminated[c] {
+                            if v < min_votes && (1 << c) & eliminated == 0 {
                                 min_votes = v;
                                 worst_candidate = c;
                             }
                         }
-                        eliminated[worst_candidate] = true;
+                        eliminated |= 1 << worst_candidate;
                     }
                 }
             }

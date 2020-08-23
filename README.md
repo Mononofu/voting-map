@@ -28,7 +28,7 @@ sudo perf record --call-graph=dwarf \
 Then view the report with:
 
 ```
-perf report --hierarchy -M intel
+sudo perf report --hierarchy -M intel
 ```
 
 You can navigate with the cursor keys and enter to move into a function, and press `a` to get an annotated disassembly interleaved with source code of the selected function.

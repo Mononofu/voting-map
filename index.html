@@ -83,8 +83,6 @@
             const draw = async (mapSize = null) => {
                 if (!dirty) return;
 
-                console.log('draw', mapSize);
-
                 // Low quality but fast preview during dragging, higher quality rendering otherwise.
                 if (mapSize == null) mapSize = selected == null ? 128 : 64;
 
